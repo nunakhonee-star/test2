@@ -176,3 +176,5 @@ $('equipmentForm').addEventListener('submit', async (e) => {
 
 loadEquipment();
 $('calcBtn').click();
+
+
