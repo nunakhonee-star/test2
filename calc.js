@@ -8,7 +8,9 @@ export function calculateSolar(input) {
   const yieldPerKwpMonth = Math.max(1, Number(input.yieldPerKwpMonth) || 125);
   const requestedBackupKwh = Math.max(0, Number(input.requestedBackupKwh) || 0);
   const batteryDod = clamp(Number(input.batteryDod) || 0.9, 0.1, 1);
-  const tariff = Math.max(0, Number(input.tariff) || 4.2);
+  const monthlyBill = Math.max(0, Number(input.monthlyBill) || 0);
+  // ใช้ภายในเพื่อประมาณการประหยัดเท่านั้น ไม่แสดง "ค่าไฟเฉลี่ยจริง" บนหน้าเว็บ
+  const tariff = monthlyKwh > 0 && monthlyBill > 0 ? monthlyBill / monthlyKwh : 4.2;
 
   const daytimeKwh = monthlyKwh * (daytimePercent / 100);
   const recommendedKwpRaw = daytimeKwh / yieldPerKwpMonth;
@@ -22,7 +24,7 @@ export function calculateSolar(input) {
   const estimatedAnnualSaving = estimatedMonthlySaving * 12;
 
   return {
-    monthlyKwh, daytimeKwh, recommendedKwpRaw, panelCount, installedKwp,
+    monthlyKwh, monthlyBill, daytimeKwh, recommendedKwpRaw, panelCount, installedKwp,
     inverterKwTarget, batteryNameplateKwh, estimatedMonthlyGeneration,
     estimatedSelfUsedKwh, estimatedMonthlySaving, estimatedAnnualSaving
   };
