@@ -1,4 +1,2 @@
-// ใส่ค่าจาก Supabase ตรงนี้ภายหลัง
-// ถ้ายังไม่ใส่ เว็บจะทำงานใน Demo Mode ได้
-export const SUPABASE_URL = "";
-export const SUPABASE_KEY = "";
+export const SUPABASE_URL = "https://wsgwomesggqgljifetqv.supabase.co";
+export const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZ3dvbWVzZ2dxZ2xqaWZldHF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NzMzOTAsImV4cCI6MjEwNjM0OTM5MH0.HsT7irKW95tmI2Q_nxS_uB_xX6kA0O3flxiqICz0AGk";
