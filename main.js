@@ -89,7 +89,7 @@ app.innerHTML = `
               <label>ใช้ไฟช่วงกลางวัน (%)<input id="daytimePercent" type="number" value="70"></label>
               <label>กำลังแผงที่ต้องการใช้ (Wp)<input id="panelWp" type="number" value="580"></label>
               <label>ผลผลิตสมมติ (kWh/kWp/เดือน)<input id="yieldPerKwpMonth" type="number" value="125"></label>
-              <label>ค่าไฟเฉลี่ย (บาท/kWh)<input id="tariff" type="number" step="0.01" value="4.20"></label>
+              <label>ค่าไฟที่ลูกค้าจ่ายจากบิล (บาท/เดือน)<input id="monthlyBill" type="number" step="1" value="5000"></label>
               <label>พลังงานสำรองที่ต้องการ (kWh)<input id="requestedBackupKwh" type="number" step="0.1" value="0"></label>
             </div>
           </div>
@@ -236,7 +236,7 @@ function runCalculation(){
   const solar=calculateSolar({
     monthlyKwh:$('monthlyKwh').value, daytimePercent:$('daytimePercent').value,
     panelWp:$('panelWp').value, yieldPerKwpMonth:$('yieldPerKwpMonth').value,
-    tariff:$('tariff').value, requestedBackupKwh:$('requestedBackupKwh').value, batteryDod:.9
+    monthlyBill:$('monthlyBill').value, requestedBackupKwh:$('requestedBackupKwh').value, batteryDod:.9
   });
   const eco=evaluateEconomics({
     totalProjectPrice:$('projectPrice').value, annualSaving:solar.estimatedAnnualSaving,
