@@ -1,3 +1,4 @@
+
 export const APPLIANCE_LIBRARY = [
   { id:'ac9000', name:'แอร์ 9,000 BTU', powerW:900, surge:3, hasSurge:true },
   { id:'ac12000', name:'แอร์ 12,000 BTU', powerW:1200, surge:3, hasSurge:true },
@@ -49,7 +50,8 @@ export function designSystem({ mode, systemType, items, pricing, backup, sel, bu
   const invTarget = Math.max(kwp/1.15, hybrid?backup.continuousKw*1.25:0, hybrid?backup.surgeKw:0);
   const autoInv = chooseClosest(items,'power_kw',invTarget,'inverter',systemType);
   const inverter = items.find(x=>x.id===sel.invId) || autoInv;
-  const autoInvQty = 1, invQty = sel.invQty>0 ? Math.floor(sel.invQty) : autoInvQty;
+  const autoInvQty = autoInv ? Math.max(1, Math.ceil(invTarget / Number(autoInv.power_kw || invTarget || 1))) : 1;
+  const invQty = sel.invQty>0 ? Math.floor(sel.invQty) : autoInvQty;
   const need = hybrid ? backup.batteryKwh : 0;
   const autoBat = need>0 ? chooseClosest(items,'capacity_kwh',need,'battery','Hybrid') : null;
   const battery = hybrid ? (items.find(x=>x.id===sel.batId) || autoBat) : null;
@@ -64,7 +66,12 @@ export function designSystem({ mode, systemType, items, pricing, backup, sel, bu
   const saveMonth = selfUse*effRate, saveYear = saveMonth*12;
   const eco = economics(price.total, saveYear);
   if(!inverter) warnings.push('ไม่พบ Inverter ที่เหมาะสมในฐานข้อมูล');
-  else { const acKw = Number(inverter.power_kw||0)*invQty; if(acKw>0 && kwp/acKw>1.5) warnings.push(`Inverter เล็กเกินไป (DC/AC ${(kwp/acKw).toFixed(2)}) ควรเพิ่มขนาดหรือจำนวน`); if(hybrid && acKw<backup.surgeKw) warnings.push(`Inverter รวม ${acKw.toFixed(1)} kW ต่ำกว่าโหลด Surge ${backup.surgeKw.toFixed(1)} kW`); }
+  else {
+    const acKw = Number(inverter.power_kw||0)*invQty;
+    if(inverter.system_type && inverter.system_type!==systemType) warnings.push(`Inverter รุ่นที่เลือกกำหนดไว้สำหรับ ${inverter.system_type} แต่โครงการนี้เป็น ${systemType}`);
+    if(acKw>0 && kwp/acKw>1.5) warnings.push(`Inverter เล็กเกินไป (DC/AC ${(kwp/acKw).toFixed(2)}) ควรเพิ่มขนาดหรือจำนวน`);
+    if(hybrid && acKw<backup.surgeKw) warnings.push(`Inverter รวม ${acKw.toFixed(1)} kW ต่ำกว่าโหลด Surge ${backup.surgeKw.toFixed(1)} kW`);
+  }
   if(hybrid && need>0){ if(!battery) warnings.push('ไม่พบแบตเตอรี่ในฐานข้อมูล'); else { const have=Number(battery.capacity_kwh||0)*batQty; if(have<need*0.98) warnings.push(`แบตเตอรี่รวม ${have.toFixed(1)} kWh ต่ำกว่าที่ต้องใช้ ${need.toFixed(1)} kWh`); } }
   if(mode==='budget' && moneyN(budget)>0 && price.total>moneyN(budget)) warnings.push(`ราคาเกินงบ ${Math.round(price.total-moneyN(budget)).toLocaleString('th-TH')} บาท`);
   const manual = { panel:!!(sel.panelId||sel.panelQty), inverter:!!(sel.invId||sel.invQty), battery:!!(sel.batId||sel.batQty) };
