@@ -75,3 +75,86 @@ input[type=checkbox],input[type=radio]{width:auto}
 @media(max-width:640px){main{padding:14px 12px 40px}.top{padding:0 12px;gap:10px}.mode{display:none}.grid2,.grid3,.ap-list,.specs{grid-template-columns:1fr}.figures{grid-template-columns:1fr}.eq-row{grid-template-columns:1fr 112px}.eq-name{grid-column:1/-1}.headline b{font-size:32px}.trio b{font-size:16px}.actions .btn{flex:1}}
 @media(prefers-reduced-motion:no-preference){.seg span{transition:background .15s}}
 @media print{body{background:#fff}.top,.inputs,.head .btn{display:none!important}.page{display:none!important}#calculator{display:block!important}.calc{display:block}.result{position:static;max-height:none;overflow:visible}.headline{background:#fff;color:var(--ink);border:2px solid var(--ink)}.headline span,.headline small{color:var(--mut)}.panel,.trio{break-inside:avoid}}
+
+/* ===== V6 Solar Calm Theme / Responsive Assessment ===== */
+:root{
+  --solar-green:#0b6b57;
+  --solar-green-dark:#084d40;
+  --solar-mint:#eaf6f1;
+  --solar-cyan:#39aabf;
+  --solar-cyan-soft:#eaf8fb;
+  --solar-gold:#f0a500;
+  --solar-gold-soft:#fff7dc;
+  --shadow-soft:0 10px 30px rgba(20,58,49,.06);
+}
+body{background:linear-gradient(180deg,#f4f9f7 0%,#f7faf9 45%,#f2f6f5 100%)}
+main{max-width:1480px}
+.top{height:auto;min-height:64px;padding-block:8px;box-shadow:0 1px 0 rgba(14,57,47,.04)}
+.brand b{font-size:18px}.mark{background:linear-gradient(135deg,#ffd45c,#f0a500)}
+.nav button{border-radius:10px;padding:9px 13px}.nav button.active{background:#e5f4ef;color:var(--solar-green-dark)}
+
+/* ลำดับหน้า Assessment: ข้อมูลด้านซ้าย ผลลัพธ์ด้านขวา แต่ปรับยืดหยุ่นตามจอ */
+.calc{grid-template-columns:minmax(360px,.9fr) minmax(560px,1.35fr);gap:22px}
+.inputs{gap:16px}.step,.panel{border-radius:16px;border-color:#dce8e3;box-shadow:var(--shadow-soft)}
+.step{padding:20px}.step h2{font-size:18px}.step h2::before{background:linear-gradient(135deg,var(--solar-green),#169273)}
+input,select,textarea{border-radius:10px;border-color:#cfddd7;background:#fcfefd;padding:10px 12px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#70baa7;box-shadow:0 0 0 3px rgba(11,107,87,.09)}
+.seg{border-radius:10px}.seg input:checked+span{background:linear-gradient(135deg,var(--solar-green),#168a70)}
+.btn{border-radius:10px}.btn.primary{background:linear-gradient(135deg,var(--solar-green),#168a70);box-shadow:0 6px 16px rgba(11,107,87,.16)}
+
+/* Result */
+.result{top:82px;gap:16px;padding:0 2px 8px}
+.headline{border-radius:18px;background:linear-gradient(135deg,#075d4b,#0e8469);box-shadow:0 14px 28px rgba(8,77,64,.14)}
+.headline b{font-size:42px}
+.trio{border-radius:16px;overflow:hidden;box-shadow:var(--shadow-soft)}
+.trio div{background:#fff}.trio b{color:var(--solar-green-dark)}
+
+.overview-panel{background:#fff;border:1px solid #dce8e3;border-radius:18px;padding:18px;box-shadow:var(--shadow-soft)}
+.overview-title{font-weight:700;font-size:19px;text-align:center;padding-bottom:12px;border-bottom:3px solid #d7f2e8;margin-bottom:16px}
+.overview-title span{font-weight:600;color:#596b65}
+.overview-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.overview-card{min-height:108px;border-radius:16px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:linear-gradient(180deg,#45aec2,#38a4b8);color:#0c2930;box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.overview-card b{font-size:27px;line-height:1.15;font-weight:800;font-variant-numeric:tabular-nums}
+.overview-card span{font-size:12px;margin-top:9px;color:#143a40}
+
+.savings-panel{background:linear-gradient(180deg,#fff,#f7fcfa)}
+.savings-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.savings-grid>div{padding:13px;border-radius:12px;background:#f1f8f5;border:1px solid #dcebe5}
+.savings-grid span{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+.savings-grid b{font-size:18px;color:#0a6d56;font-variant-numeric:tabular-nums}
+
+/* Backup loads */
+.ap-list{grid-template-columns:repeat(auto-fit,minmax(205px,1fr))}
+.ap-row{background:#fbfefd;border-radius:12px;transition:.15s ease}.ap-row:hover{border-color:#9fcfc0;background:#f4fbf8}
+.ap-row input{border-radius:8px}
+.align-end{align-self:end;min-height:41px}
+.muted-item{opacity:.58;background:#f7f7f7}
+.item-actions{flex-wrap:wrap;justify-content:flex-end}
+
+/* Installed equipment */
+.eq-row{grid-template-columns:minmax(110px,.22fr) minmax(220px,1fr) minmax(110px,.28fr);padding:10px 0;border-bottom:1px dashed #e1e9e6}
+.eq-row:last-child{border-bottom:0}.eq-name{color:#184d40}
+
+/* Cost and value charts */
+.chart-legend{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 8px;font-size:12px;color:var(--mut)}
+.chart-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}.legend-save{background:var(--solar-cyan)}.legend-invest{background:var(--solar-gold)}
+.cost tr.total td{color:var(--solar-green-dark);background:#eff8f4}
+.warn{border-radius:12px}
+
+/* Admin */
+.admin{grid-template-columns:minmax(320px,400px) minmax(0,1fr);gap:18px}.item{border-radius:12px}.list{gap:10px}
+
+/* Flex layout according to device */
+@media(max-width:1280px){
+  .calc{grid-template-columns:minmax(340px,.85fr) minmax(500px,1.15fr)}
+  .overview-grid,.savings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:1080px){
+  .calc,.admin{grid-template-columns:1fr}.result{position:static;max-height:none;overflow:visible}.overview-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .overview-grid,.savings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.eq-row{grid-template-columns:1fr}.eq-name{grid-column:auto}.qty{max-width:180px}.trio{grid-template-columns:1fr}.trio div+div{border-left:0;border-top:1px solid var(--line)}
+}
+@media(max-width:520px){
+  .overview-grid,.savings-grid{grid-template-columns:1fr 1fr}.overview-card{min-height:96px}.overview-card b{font-size:22px}.headline b{font-size:34px}.top{align-items:flex-start;flex-wrap:wrap}.nav{order:3;width:100%}
+}
