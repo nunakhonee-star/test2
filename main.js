@@ -1,7 +1,7 @@
 // All local modules share the release token from index.html.
-const release = new URL(import.meta.url).searchParams.get('v') || '20261009-1';
+const release = new URL(import.meta.url).searchParams.get('v') || '20261009-2';
 const localModule = name => new URL(name + '?v=' + encodeURIComponent(release), import.meta.url).href;
-const { DEFAULT_PRICING, normalizePricing, backupFromAppliances, toCalcAppliance, designSystem } = await import(localModule('./calc.js'));
+const { DEFAULT_PRICING, normalizePricing, backupFromAppliances, toCalcAppliance, designSystem, usagePlan } = await import(localModule('./calc.js'));
 let supabase = null;
 let demoMode = true;
 const dataErrors = new Map();
@@ -69,7 +69,18 @@ $('app').innerHTML = `
 <div class="inputs" id="inputs">
   <section class="step"><h2>ลูกค้าและประเภทงาน</h2>
     <div class="grid3"><label>ชื่อลูกค้า<input id="customerName" placeholder="คุณสมชาย / บริษัท ABC"></label><label>เบอร์โทร<input id="phone" inputmode="tel"></label><label>สถานที่ / โครงการ<input id="siteName"></label></div>
-    <div class="grid2"><div class="field"><span>ประเภทระบบ</span>${seg('systemType', [['On-Grid', 'On-Grid'], ['Hybrid', 'Hybrid (มีแบตเตอรี่)']])}</div><div class="field"><span>ประเมินจาก</span>${seg('calcMode', [['usage', 'การใช้ไฟ'], ['budget', 'งบประมาณ']])}</div></div>
+    <div class="grid2">
+      <label>ลักษณะอาคาร<select id="buildingType"><option value="home">บ้านอยู่อาศัย</option><option value="factory">โรงงาน / อุตสาหกรรม</option><option value="business">สำนักงาน / ธุรกิจ</option></select></label>
+      <label>โครงสร้างระบบไฟ<select id="supplyPhase"><option value="1PH">1 เฟส</option><option value="3PH">3 เฟส</option></select><small>บ้านตั้งต้น 1 เฟส โรงงาน/ธุรกิจ 3 เฟส ปรับให้ตรงกับมิเตอร์จริงได้</small></label>
+    </div>
+    <div class="field"><span>ช่วงเวลาใช้ไฟหลัก</span>${seg('usagePeriod', [['day', '☀ กลางวัน'], ['night', '☾ กลางคืน'], ['both', '◐ ทั้งกลางวัน–กลางคืน']])}</div>
+    <div class="period-guide">
+      <p><b>☀ กลางวัน</b> = On-Grid (ไม่ต้องมีแบต) โดยทั่วไปคืนทุนเร็วสุด</p>
+      <p><b>☾ กลางคืน</b> = Hybrid (แบตใหญ่) เก็บไฟไว้ใช้ตอนกลางคืน</p>
+      <p><b>◐ ทั้งคู่</b> = Hybrid (แบตกลาง) ใช้ตลอดวัน + กันไฟดับตามโหลดที่เลือก</p>
+      <small>ขนาดแบตจริงคำนวณจากการใช้ไฟและโหลดสำรอง ไม่ใช่ขนาดตายตัว</small>
+    </div>
+    <div class="grid2"><div class="field"><span>ประเภทระบบ (ปรับเองได้)</span>${seg('systemType', [['On-Grid', 'On-Grid'], ['Hybrid', 'Hybrid (มีแบตเตอรี่)']])}</div><div class="field"><span>ประเมินจาก</span>${seg('calcMode', [['usage', 'การใช้ไฟ'], ['budget', 'งบประมาณ']])}</div></div>
   </section>
 
   <section class="step"><h2>การใช้ไฟและงบประมาณ</h2>
@@ -78,9 +89,9 @@ $('app').innerHTML = `
       <label>หน่วยไฟต่อเดือน (kWh)<input id="monthlyKwh" type="number" placeholder="เช่น 1200"><small>เว้นว่างได้ ระบบจะประมาณจากค่าไฟ</small></label>
       <label>ค่าไฟต่อเดือน (บาท)<input id="monthlyBill" type="number" placeholder="เช่น 5000"></label>
       <label>ประเภทผู้ใช้ไฟ<select id="tariffType"><option value="residential">บ้านอยู่อาศัย</option><option value="business">ธุรกิจทั่วไป</option><option value="industrial">โรงงาน / อุตสาหกรรม</option></select></label>
-      <label>ใช้ไฟช่วงกลางวัน (%)<input id="daytimePercent" type="number" min="0" max="100" placeholder="เช่น 70"></label>
+      <label>ใช้ไฟช่วงกลางวัน (%)<input id="daytimePercent" type="number" min="0" max="100" placeholder="อัตโนมัติ 90%"><small id="periodAssumption"></small></label>
     </div>
-    <p class="hint" id="usageNote"></p>
+    <p class="hint" id="usageNote"></p><p class="hint" id="planNote"></p>
   </section>
 
   <section class="step" id="backupStep" hidden><h2>โหลดสำรอง (Hybrid)</h2>
@@ -89,7 +100,7 @@ $('app').innerHTML = `
     <div class="figures"><div><span>โหลดต่อเนื่อง</span><b id="bkCont">—</b></div><div><span>โหลดสูงสุด (Surge)</span><b id="bkSurge">—</b></div><div><span>แบตเตอรี่ที่ต้องใช้</span><b id="bkBat">—</b></div></div>
   </section>
 
-  <section class="step equipment-step"><div class="step-head"><div><h2>อุปกรณ์ที่ติดตั้ง</h2><p class="hint">ค่าเริ่มต้นเป็น “อัตโนมัติ” ระบบจะเลือกรุ่นและจำนวนที่เหมาะสมให้ตามข้อมูลที่กรอก</p></div><div class="equipment-actions"><button type="button" class="btn btn-auto" id="autoEquipmentBtn"><span class="btn-icon">✦</span> เลือกอัตโนมัติ</button><button type="button" class="btn btn-soft" id="resetCalcBtn"><span class="btn-icon">↻</span> รีเซ็ตฟอร์ม</button></div></div>
+  <section class="step equipment-step"><div class="step-head"><div><h2>อุปกรณ์ที่ติดตั้ง</h2><p class="hint">ค่าเริ่มต้นเป็น “อัตโนมัติ” ระบบจะเลือกรุ่นและจำนวนที่เหมาะสมให้ตามข้อมูลที่กรอก</p></div><div class="equipment-actions"><button type="button" class="btn btn-auto" id="autoEquipmentBtn"><span class="btn-icon">✦</span> เลือกอัตโนมัติ</button></div></div>
     ${Object.keys(CAT).map(c => `<div class="eq-row" id="row_${c}"><span class="eq-name">${CAT[c]}</span><select id="sel_${c}" aria-label="${CAT[c]}"></select><label class="qty"><input id="qty_${c}" type="number" min="0" step="1" placeholder="อัตโนมัติ" aria-label="จำนวน${CAT[c]}"><span>${UNIT[c]}</span></label></div>`).join('')}
   </section>
 
@@ -115,7 +126,7 @@ $('app').innerHTML = `
     <div id="rWarn"></div>
     <section class="panel"><h3>อุปกรณ์และค่าใช้จ่าย</h3><div class="table-wrap"><table class="cost"><thead><tr><th>รายการ</th><th class="r">จำนวน</th><th class="r">จำนวนเงิน</th></tr></thead><tbody id="rCost"></tbody></table></div></section>
     <section class="panel"><h3>การผลิตไฟฟ้า</h3><dl class="specs" id="rGen"></dl></section>
-    <section class="panel"><h3>ความคุ้มค่าและเงินประหยัดสะสม</h3><dl class="specs" id="rEco"></dl><div class="chart-wrap" id="chart"></div></section>
+    <section class="panel"><h3>ความคุ้มค่าและเงินประหยัดสะสม</h3><dl class="specs" id="rEco"></dl><div class="chart-wrap" id="chart"></div><div id="chartTooltip" class="chart-tooltip" role="tooltip" hidden></div><div class="table-wrap annual-wrap"><table class="cost annual-table"><caption>เงินประหยัดและกระแสเงินสดรายปี (บาท)</caption><thead><tr><th>ปี</th><th class="r">ประหยัดค่าไฟ</th><th class="r">บำรุงรักษา</th><th class="r">กระแสเงินสดสุทธิ</th><th class="r">ประหยัดสุทธิสะสม</th><th class="r">สุทธิหลังหักลงทุน</th></tr></thead><tbody id="annualBody"></tbody></table></div><p class="hint">ประมาณการตามสมมติฐานเดิม 25 ปี ยังไม่รวมค่าเปลี่ยนแบตเตอรี่/อินเวอร์เตอร์ในอนาคต</p></section>
   </div>
 </aside>
 </div></section>
@@ -166,8 +177,8 @@ document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => showPage(b
 /* ---------- โหลดข้อมูล ---------- */
 const demoEquipment = () => [
   { id: 'p1', category: 'panel', brand: 'Demo Solar', model: '580W Mono', panel_wp: 580, cost: 2500, sell_price: 3200, active: true, is_default: true },
-  { id: 'i1', category: 'inverter', brand: 'Demo Inverter', model: '6K On Grid', power_kw: 6, cost: 22000, sell_price: 28000, active: true, system_type: 'On-Grid' },
-  { id: 'i2', category: 'inverter', brand: 'Demo Inverter', model: '10K Hybrid', power_kw: 10, cost: 35000, sell_price: 45000, active: true, system_type: 'Hybrid' },
+  { id: 'i1', category: 'inverter', brand: 'Demo Inverter', model: '6K On Grid', power_kw: 6, phase: '1PH', cost: 22000, sell_price: 28000, active: true, system_type: 'On-Grid' },
+  { id: 'i2', category: 'inverter', brand: 'Demo Inverter', model: '10K Hybrid', power_kw: 10, phase: '1PH', cost: 35000, sell_price: 45000, active: true, system_type: 'Hybrid' },
   { id: 'b1', category: 'battery', brand: 'Demo Battery', model: '10kWh LFP', capacity_kwh: 10, cost: 65000, sell_price: 82000, active: true, system_type: 'Hybrid' },
   { id: 'b2', category: 'battery', brand: 'Demo Battery', model: '15kWh LFP', capacity_kwh: 15, cost: 82000, sell_price: 99000, active: true, system_type: 'Hybrid' }];
 async function loadEquipment() {
@@ -217,7 +228,7 @@ function fillSelects() {
   const sys = radio('systemType');
   for (const c of Object.keys(CAT)) {
     const el = $('sel_' + c), keep = el.value;
-    const list = state.equipment.filter(x => x.category === c && x.active !== false && (c === 'panel' || !x.system_type || x.system_type === sys));
+    const list = state.equipment.filter(x => x.category === c && x.active !== false && (c === 'panel' || !x.system_type || x.system_type === sys) && (c !== 'inverter' || x.phase === $('supplyPhase').value));
     el.innerHTML = '<option value="">อัตโนมัติ</option>' + list.map(x => `<option value="${x.id}">${esc(x.brand)} ${esc(x.model)} · ${spec(x)} · ${money(x.sell_price)}</option>`).join('');
     el.value = list.some(x => x.id === keep) ? keep : '';
   }
@@ -227,12 +238,19 @@ function fillSelects() {
 function calc() {
   const sys = radio('systemType'), mode = radio('calcMode');
   $('budgetRow').hidden = mode !== 'budget'; $('backupStep').hidden = sys !== 'Hybrid'; $('row_battery').hidden = sys !== 'Hybrid';
-  if (sys !== lastSys) { lastSys = sys; fillSelects(); }
-  const backup = sys === 'Hybrid' ? backupFromAppliances(state.apQty, num('backupHours'), state.appliances.filter(a => a.active !== false).map(toCalcAppliance)) : { continuousKw: 0, surgeKw: 0, usableKwh: 0, batteryKwh: 0, items: [] };
+  const selectKey = sys + ':' + $('supplyPhase').value;
+  if (selectKey !== lastSys) { lastSys = selectKey; fillSelects(); }
+  const rawBackup = sys === 'Hybrid' ? backupFromAppliances(state.apQty, num('backupHours'), state.appliances.filter(a => a.active !== false).map(toCalcAppliance)) : { continuousKw: 0, surgeKw: 0, usableKwh: 0, batteryKwh: 0, items: [] };
+  const usage = { monthlyKwh: $('monthlyKwh').value, monthlyBill: $('monthlyBill').value, tariffType: $('tariffType').value, daytimePercent: $('daytimePercent').value, period: radio('usagePeriod'), phase: $('supplyPhase').value };
+  const plan = usagePlan(usage, sys, rawBackup);
+  const backup = plan.backup;
+  $('periodAssumption').textContent = 'เว้นว่างใช้สมมติฐาน: กลางวัน 90% / กลางคืน 10% / ทั้งคู่ 50% ปรับตามการใช้จริงได้';
+  $('daytimePercent').placeholder = 'อัตโนมัติ ' + plan.defaultDayPercent + '%';
+  $('planNote').textContent = 'กลางวัน ' + plan.dayPercent + '% • กลางคืน ' + (100-plan.dayPercent) + '% • ใช้กลางคืนประมาณ ' + plan.nightDaily.toFixed(1) + ' kWh/วัน • แบตเป้าหมาย ' + backup.batteryKwh.toFixed(1) + ' kWh (ใช้ค่ามากกว่าระหว่างกลางคืนกับโหลดสำรอง)';
   $('bkCont').textContent = backup.continuousKw ? backup.continuousKw.toFixed(2) + ' kW' : '—';
   $('bkSurge').textContent = backup.surgeKw ? backup.surgeKw.toFixed(2) + ' kW' : '—';
   $('bkBat').textContent = backup.batteryKwh ? backup.batteryKwh.toFixed(1) + ' kWh' : '—';
-  const usage = { monthlyKwh: $('monthlyKwh').value, monthlyBill: $('monthlyBill').value, tariffType: $('tariffType').value, daytimePercent: $('daytimePercent').value };
+
   const sel = { panelId: $('sel_panel').value, panelQty: num('qty_panel'), invId: $('sel_inverter').value, invQty: num('qty_inverter'), batId: $('sel_battery').value, batQty: num('qty_battery') };
   const r = designSystem({ mode, systemType: sys, items: state.equipment, pricing: state.pricing, backup, sel, budget: num('budgetAmount'), usage });
   if (r.error) { state.last = null; $('resultBody').hidden = true; $('resultEmpty').hidden = false; $('resultEmpty').textContent = r.error; $('usageNote').textContent = ''; return; }
@@ -247,7 +265,7 @@ function render(r, sys) {
   $('usageNote').textContent = r.usageSource === 'actual' ? 'ใช้หน่วยไฟจริงจากบิล' : r.usageSource === 'estimated' ? `ประมาณหน่วยไฟจากค่าไฟ ≈ ${r.monthlyKwh.toFixed(0)} kWh/เดือน` : 'ยังไม่มีข้อมูลหน่วยไฟ จึงสมมติใช้ไฟเองได้ 80% ของที่ผลิต';
   const pay = r.eco.payback ? `${r.eco.payback} ปี` : 'เกิน 25 ปี', p = r.price;
   $('rTotal').textContent = money(p.total);
-  const phase = r.inverter?.phase || '—';
+  const phase = r.phase === '3PH' ? '3 เฟส' : '1 เฟส';
   const batKwh = r.battery ? (r.batQty * Number(r.battery.capacity_kwh || 0)) : 0;
   const bill = num('monthlyBill');
   const remain = Math.max(0, bill - r.saveMonth);
@@ -272,18 +290,35 @@ function render(r, sys) {
   const dl = rows => rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
   $('rGen').innerHTML = dl([['ผลิตต่อวัน', `${r.genDay.toFixed(1)} kWh`], ['ผลิตต่อเดือน', `${r.genMonth.toFixed(0)} kWh`], ['ผลิตต่อปี (ปีแรก)', `${r.genYear.toFixed(0)} kWh`], ['ใช้เองได้', `${(r.ratio * 100).toFixed(0)}% ของที่ผลิต`]]);
   $('rEco').innerHTML = dl([['ประหยัดปีแรก', money(r.saveYear)], ['IRR', r.eco.irr == null ? '—' : r.eco.irr.toFixed(1) + '%'], ['NPV 25 ปี', money(r.eco.npv)], ['ลด CO₂', `${r.co2.toFixed(1)} ตัน/ปี`]]);
-  renderBar(r.eco.points, r.eco.payback, p.total);
+  renderBar(r.eco.points, r.eco.payback, p.total, r.cashflowRows);
 }
 const shortMoney = v => { const a = Math.abs(v), s = v < 0 ? '-' : ''; return a >= 1e6 ? s + (a / 1e6).toFixed(1) + 'ล.' : a >= 1e3 ? s + Math.round(a / 1e3) + 'k' : s + Math.round(a); };
-function renderBar(points, payback, investment) {
-  const savings = points.map(pt => ({ year: pt.year, value: Math.max(0, pt.cumulative + Number(investment || 0)) }));
-  const W = 640, H = 270, p = { t: 20, r: 10, b: 40, l: 56 };
-  const maxY = Math.max(Number(investment || 0), ...savings.map(x => x.value), 1);
-  const cw = W - p.l - p.r, ch = H - p.t - p.b, step = cw / savings.length, bw = Math.max(6, step - 3);
-  const x = i => p.l + i * step + 1, y = v => p.t + (maxY - v) / maxY * ch;
-  const ticks = Array.from({ length: 5 }, (_, i) => maxY * i / 4), pi = payback == null ? null : Math.round(payback);
-  $('chart').innerHTML = `<div class="chart-legend"><span><i class="legend-save"></i>เงินประหยัดสะสม</span><span><i class="legend-invest"></i>เงินลงทุน</span></div><svg viewBox="0 0 ${W} ${H}" class="svg-chart" role="img" aria-label="กราฟเงินประหยัดสะสมเทียบเงินลงทุน">${ticks.map(v => `<line x1="${p.l}" y1="${y(v)}" x2="${W - p.r}" y2="${y(v)}" stroke="#e8eeec"/><text x="${p.l - 6}" y="${y(v) + 4}" text-anchor="end" class="tick">${shortMoney(v)}</text>`).join('')}<line x1="${p.l}" y1="${y(investment)}" x2="${W - p.r}" y2="${y(investment)}" stroke="#f0a500" stroke-width="2" stroke-dasharray="6 4"/>${savings.map((pt, i) => `<rect x="${x(i)}" y="${y(pt.value)}" width="${bw}" height="${Math.max(1, y(0) - y(pt.value))}" rx="2" fill="${pt.value >= investment ? '#0b7a5f' : '#39aabf'}"/>${i % 5 === 0 ? `<text x="${x(i) + bw / 2}" y="${H - 14}" text-anchor="middle" class="tick">ปี ${pt.year}</text>` : ''}`).join('')}${pi !== null && savings[pi] ? `<line x1="${x(pi) + bw / 2}" y1="${p.t}" x2="${x(pi) + bw / 2}" y2="${H - p.b}" stroke="#12231f" stroke-dasharray="4 4"/><text x="${x(pi) + bw / 2 + 4}" y="${p.t + 10}" class="tick">คืนทุน ${payback} ปี</text>` : ''}</svg>`;
+function renderBar(points, payback, investment, rows) {
+  const W=640,H=270,p={t:20,r:10,b:40,l:56};
+  const savings=rows.map(row=>({year:row.year,value:Math.max(0,row.accumulated)}));
+  const maxY=Math.max(investment,...savings.map(x=>x.value),1),cw=W-p.l-p.r,ch=H-p.t-p.b,step=cw/savings.length,bw=Math.max(6,step-3);
+  const x=i=>p.l+i*step+1,y=v=>p.t+(maxY-v)/maxY*ch;
+  const detail=row=>`ปี ${row.year}\nประหยัดค่าไฟ: ${money(row.saving)}\nบำรุงรักษา: ${money(row.maintenance)}\nกระแสเงินสดสุทธิ: ${money(row.net)}\nประหยัดสุทธิสะสม: ${money(row.accumulated)}\nสุทธิหลังหักลงทุน: ${money(row.cumulative)}`;
+  $('chartTooltip').hidden=true;
+  $('chart').innerHTML=`<div class="chart-legend"><span><i class="legend-save"></i>ประหยัดสุทธิสะสม (หักบำรุงรักษา)</span><span><i class="legend-invest"></i>เงินลงทุน</span></div><p class="hint">ชี้เมาส์ แตะแท่งกราฟ หรือใช้ Tab เพื่อดูรายละเอียดรายปี</p><svg viewBox="0 0 ${W} ${H}" class="svg-chart" role="group" aria-label="เงินประหยัดสะสมเทียบเงินลงทุน">${Array.from({length:5},(_,i)=>maxY*i/4).map(v=>`<line x1="${p.l}" y1="${y(v)}" x2="${W-p.r}" y2="${y(v)}" stroke="#e8eeec"/><text x="${p.l-6}" y="${y(v)+4}" text-anchor="end" class="tick">${shortMoney(v)}</text>`).join('')}<line x1="${p.l}" y1="${y(investment)}" x2="${W-p.r}" y2="${y(investment)}" stroke="#d7a63e" stroke-width="2" stroke-dasharray="6 4"/>${savings.map((pt,i)=>`<rect class="chart-bar" data-year="${i}" tabindex="0" role="img" aria-label="${esc(detail(rows[i]))}" x="${x(i)}" y="${y(pt.value)}" width="${bw}" height="${Math.max(2,y(0)-y(pt.value))}" rx="2" fill="${pt.value>=investment?'#0b7a5f':'#39aabf'}"><title>${esc(detail(rows[i]))}</title></rect>${i%5===0?`<text x="${x(i)+bw/2}" y="${H-14}" text-anchor="middle" class="tick">ปี ${pt.year}</text>`:''}`).join('')}</svg>`;
+  $('annualBody').innerHTML=rows.map(row=>`<tr class="${row.year>0&&row.cumulative>=0?'break-even':''}"><td>${row.year===0?'0 (ลงทุน)':row.year}</td><td class="r">${money(row.saving)}</td><td class="r">${money(row.maintenance)}</td><td class="r">${money(row.net)}</td><td class="r">${money(row.accumulated)}</td><td class="r">${money(row.cumulative)}</td></tr>`).join('');
+  const show=event=>{
+    const bar=event.target.closest?.('[data-year]');if(!bar)return;
+    const tooltip=$('chartTooltip'),row=rows[Number(bar.dataset.year)];
+    tooltip.textContent=detail(row);tooltip.style.whiteSpace='pre-line';tooltip.hidden=false;
+    const rect=bar.getBoundingClientRect(),left=event.clientX||rect.left,top=event.clientY||rect.top;
+    tooltip.style.left=Math.max(8,Math.min(left+14,innerWidth-tooltip.offsetWidth-8))+'px';
+    tooltip.style.top=Math.max(8,Math.min(top+14,innerHeight-tooltip.offsetHeight-8))+'px';
+  };
+  $('chart').onpointerover=show;$('chart').onpointermove=show;$('chart').onclick=show;
+  $('chart').querySelectorAll('.chart-bar').forEach(bar => {
+    bar.addEventListener('focus', () => show({target:bar}));
+    bar.addEventListener('blur', () => $('chartTooltip').hidden=true);
+  });
+  $('chart').onpointerleave=()=>$('chartTooltip').hidden=true;
+  $('chart').onkeydown=event=>{if(event.key==='Escape')$('chartTooltip').hidden=true;};
 }
+
 
 /* ---------- โหลดสำรอง: รายการในหน้าประเมิน + หน้าจัดการ ---------- */
 const apDesc = a => `${Number(a.power_w)} W${a.has_surge ? ` • Surge ×${Number(a.surge_factor)}` : ''}`;
@@ -367,7 +402,7 @@ $('saveBtn').onclick = async () => {
   if (demoMode) return alert('กำลังใช้อุปกรณ์ตัวอย่าง ไม่สามารถบันทึกเป็นการประเมินจริงได้');
   const r = state.last; if (!r) return alert('ยังไม่มีผลประเมินให้บันทึก'); if (!supabase) return alert('โหมดทดลองไม่สามารถบันทึกได้ ต้องเชื่อม Supabase ก่อน');
   const line = (x, q) => x ? { id: x.id, name: `${x.brand} ${x.model}`, qty: q, unit_price: Number(x.sell_price || 0) } : null;
-  const payload = { customer_name: $('customerName').value || 'ไม่ระบุชื่อ', phone: $('phone').value, site_name: $('siteName').value, system_type: r.systemType, calc_mode: r.calcMode, monthly_kwh: r.monthlyKwh || 0, monthly_bill: num('monthlyBill'), daytime_percent: num('daytimePercent'), panel_wp: Number(r.panel.panel_wp || 0), recommended_kwp: r.kwp, panel_count: r.panelQty, inverter_kw: Number(r.inverter?.power_kw || 0) * r.invQty, battery_kwh: r.battery ? Number(r.battery.capacity_kwh || 0) * r.batQty : 0, project_price: r.price.total, monthly_saving: r.saveMonth, annual_saving: r.saveYear, saving_percent: num('monthlyBill') > 0 ? Math.min(100, r.saveMonth / num('monthlyBill') * 100) : 0, payback_year: r.eco.payback, final_profit: r.eco.profit25, selected_panel: `${r.panel.brand} ${r.panel.model}`, selected_inverter: r.inverter ? `${r.inverter.brand} ${r.inverter.model}` : null, selected_battery: r.battery ? `${r.battery.brand} ${r.battery.model}` : null, line_items: { panel: line(r.panel, r.panelQty), inverter: line(r.inverter, r.invQty), battery: line(r.battery, r.batQty), backup: r.backup.items.map(i => ({ appliance_id: i.id, name: i.name, qty: i.qty, watt: i.powerW })) }, notes: $('notes').value };
+  const payload = { customer_name: $('customerName').value || 'ไม่ระบุชื่อ', phone: $('phone').value, site_name: $('siteName').value, system_type: r.systemType, calc_mode: r.calcMode, monthly_kwh: r.monthlyKwh || 0, monthly_bill: num('monthlyBill'), daytime_percent: r.dayPercent, panel_wp: Number(r.panel.panel_wp || 0), recommended_kwp: r.kwp, panel_count: r.panelQty, inverter_kw: Number(r.inverter?.power_kw || 0) * r.invQty, battery_kwh: r.battery ? Number(r.battery.capacity_kwh || 0) * r.batQty : 0, project_price: r.price.total, monthly_saving: r.saveMonth, annual_saving: r.saveYear, saving_percent: num('monthlyBill') > 0 ? Math.min(100, r.saveMonth / num('monthlyBill') * 100) : 0, payback_year: r.eco.payback, final_profit: r.eco.profit25, selected_panel: `${r.panel.brand} ${r.panel.model}`, selected_inverter: r.inverter ? `${r.inverter.brand} ${r.inverter.model}` : null, selected_battery: r.battery ? `${r.battery.brand} ${r.battery.model}` : null, line_items: { design_inputs: { building: $('buildingType').value, phase: r.phase, usage_period: radio('usagePeriod'), daytime_percent: r.dayPercent, night_daily_kwh: r.nightDaily, battery_target_kwh: r.backup.batteryKwh }, panel: line(r.panel, r.panelQty), inverter: line(r.inverter, r.invQty), battery: line(r.battery, r.batQty), backup: r.backup.items.map(i => ({ appliance_id: i.id, name: i.name, qty: i.qty, watt: i.powerW })) }, notes: $('notes').value };
   const { data: saved, error } = await supabase.from('assessments').insert(payload).select('id').single();
   if (error) return alert('บันทึกไม่สำเร็จ: ' + error.message);
   const eqRows = [r.panel && { assessment_id: saved.id, equipment_id: uuidOrNull(r.panel.id), category: 'panel', qty: r.panelQty, unit_price: Number(r.panel.sell_price || 0) }, r.inverter && { assessment_id: saved.id, equipment_id: uuidOrNull(r.inverter.id), category: 'inverter', qty: r.invQty, unit_price: Number(r.inverter.sell_price || 0) }, r.battery && { assessment_id: saved.id, equipment_id: uuidOrNull(r.battery.id), category: 'battery', qty: r.batQty, unit_price: Number(r.battery.sell_price || 0) }].filter(Boolean);
@@ -390,33 +425,21 @@ function setEquipmentAuto() {
   calc();
 }
 
-function resetCalculatorForm() {
-  $('customerName').value = '';
-  $('phone').value = '';
-  $('siteName').value = '';
-  $('monthlyKwh').value = '';
-  $('monthlyBill').value = '';
-  $('daytimePercent').value = '';
-  $('budgetAmount').value = '';
-  $('backupHours').value = '';
-  $('notes').value = '';
-  document.querySelector('input[name="systemType"][value="On-Grid"]').checked = true;
-  document.querySelector('input[name="calcMode"][value="usage"]').checked = true;
-  $('tariffType').value = 'residential';
-  state.apQty = {};
-  document.querySelectorAll('.ap-qty').forEach(input => input.value = '');
-  lastSys = null;
-  fillSelects();
-  setEquipmentAuto();
-  calc();
-}
 
 $('autoEquipmentBtn').onclick = setEquipmentAuto;
-$('resetCalcBtn').onclick = () => {
-  if (confirm('รีเซ็ตข้อมูลในหน้าประเมินทั้งหมดหรือไม่?')) resetCalculatorForm();
-};
 
 /* ---------- เริ่มทำงาน ---------- */
+$('buildingType').onchange = () => {
+  const building = $('buildingType').value;
+  $('supplyPhase').value = building === 'home' ? '1PH' : '3PH';
+  $('tariffType').value = building === 'home' ? 'residential' : building === 'factory' ? 'industrial' : 'business';
+  lastSys = null; calc();
+};
+document.querySelectorAll('input[name="usagePeriod"]').forEach(input => input.onchange = () => {
+  const system = radio('usagePeriod') === 'day' ? 'On-Grid' : 'Hybrid';
+  document.querySelector('input[name="systemType"][value="' + system + '"]').checked = true;
+  lastSys = null; calc();
+});
 $('inputs').addEventListener('input', e => { if (e.target.dataset.ap) state.apQty[e.target.dataset.ap] = Number(e.target.value || 0); calc(); });
 eqToggle(); resetAp();
 // Render and bind the complete UI with existing demo defaults before any network work.
