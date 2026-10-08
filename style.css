@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap');
+/* Use the existing local/system font stack so rendering never waits on Google Fonts. */
 :root{
   --ink:#18312b;--muted:#71827c;--line:#dce8e3;--line-strong:#cadbd4;
   --bg:#f4f9f7;--card:#ffffff;--green:#0b6b57;--green-dark:#074d40;--mint:#eaf6f1;
