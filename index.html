@@ -5,10 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0d5b4f" />
   <title>Solar Office Pro</title>
-  <link rel="stylesheet" href="./style.css" />
+  <style>
+    body { margin:0; font-family:system-ui,sans-serif; background:#f4f8f6; color:#173d35; }
+    .boot-card { max-width:640px; margin:8vh auto; padding:28px; border:1px solid #b9d4ca; border-radius:20px; background:white; }
+    .boot-card button, #global-error button { cursor:pointer; padding:10px 18px; border:0; border-radius:10px; background:#0d5b4f; color:white; font:inherit; }
+    #global-error { position:relative; z-index:1000; padding:18px; background:#fff4da; color:#493b1b; border-bottom:2px solid #cf9c3f; }
+    #global-error pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:150px; overflow:auto; }
+    [hidden] { display:none !important; }
+    .top .mode { display:block; white-space:normal; overflow-wrap:anywhere; max-width:320px; flex-shrink:0; }
+    @media(max-width:700px) { .boot-card { margin:24px 14px; padding:20px; } }
+    @media print { #global-error { display:none; } }
+  </style>
+  <link rel="stylesheet" href="./style.css?v=20261009-1" />
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="./main.js"></script>
+  <aside id="global-error" role="alert" hidden>
+    <strong>ระบบบางส่วนโหลดไม่สำเร็จ</strong>
+    <p>ตรวจสอบการเชื่อมต่อและไฟล์ที่อัปโหลด แล้วลองโหลดใหม่ ข้อมูลที่ยังไม่ได้บันทึกจะหายเมื่อโหลดใหม่</p>
+    <pre id="global-error-detail"></pre>
+    <button type="button" id="error-reload">โหลดใหม่</button>
+    <button type="button" id="error-dismiss">ปิดข้อความ</button>
+  </aside>
+  <div id="app" aria-busy="true">
+    <section class="boot-card" role="status">
+      <h1>☀ Solar Office Pro</h1>
+      <p id="boot-message">กำลังเปิดหน้าประเมินระบบโซลาร์…</p>
+      <p>หากโหลดนาน กรุณาตรวจสอบการเชื่อมต่อหรือกดโหลดใหม่</p>
+      <button type="button" onclick="location.reload()">โหลดใหม่</button>
+    </section>
+  </div>
+  <noscript><section class="boot-card">กรุณาเปิด JavaScript ในเบราว์เซอร์เพื่อใช้งาน Solar Office Pro</section></noscript>
+  <script>
+    // Independent of the module graph and all external CDNs.
+    (function () {
+      var ready = false;
+      var timer;
+      function showError(error) {
+        document.getElementById('global-error-detail').textContent = String(error && error.message || error || 'ไม่ทราบสาเหตุ');
+        document.getElementById('global-error').hidden = false;
+        var message = document.getElementById('boot-message');
+        if (message) message.textContent = 'เปิดระบบไม่สำเร็จ กรุณาตรวจสอบว่าอัปโหลดไฟล์ครบชุด';
+        document.getElementById('app').setAttribute('aria-busy', 'false');
+      }
+      window.solarBoot = {
+        ready: function () { ready = true; clearTimeout(timer); document.getElementById('app').setAttribute('aria-busy', 'false'); },
+        showError: showError
+      };
+      window.addEventListener('error', function (event) {
+        if (event.target && event.target !== window) showError('โหลดไฟล์ไม่สำเร็จ: ' + (event.target.src || event.target.href || 'resource'));
+        else showError(event.error || event.message);
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) { showError(event.reason); });
+      document.getElementById('error-reload').onclick = function () { location.reload(); };
+      document.getElementById('error-dismiss').onclick = function () { document.getElementById('global-error').hidden = true; };
+      timer = setTimeout(function () { if (!ready) showError('หมดเวลารอเปิดระบบ ตรวจสอบ main.js และ calc.js'); }, 15000);
+      import('./main.js?v=20261009-1').catch(showError);
+    })();
+  </script>
 </body>
 </html>
