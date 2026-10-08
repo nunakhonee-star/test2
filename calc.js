@@ -1,6 +1,7 @@
 
 export const DEFAULT_PRICING = { labor_per_kwp:6000, structure_per_kwp:3500, wiring_per_kwp:1800, transport_flat:5000, admin_flat:3000, margin_percent:8, vat_percent:7 };
-export const DEFAULTS = { yieldPerKwpMonth:125, batteryDod:0.90, batteryEff:0.95, batteryReserve:1.10, tariffGrowth:0.02, degradation:0.005, discount:0.08, maintenance:0.005, co2KgPerKwh:0.5664, analysisYears:25 };
+export const PERIOD_DEFAULTS = {day:90,night:10,both:50};
+export const DEFAULTS = { batteryReplacementYear:0,batteryReplacementCost:0,inverterReplacementYear:0,inverterReplacementCost:0, yieldPerKwpMonth:125, batteryDod:0.90, batteryEff:0.95, batteryReserve:1.10, tariffGrowth:0.02, degradation:0.005, discount:0.08, maintenance:0.005, co2KgPerKwh:0.5664, analysisYears:25 };
 export const BILL_RATES = { residential:4.2, business:4.8, industrial:4.5 };
 
 export function moneyN(v){ return Number(v||0); }
@@ -15,7 +16,8 @@ export function usageCalculation({monthlyKwh, monthlyBill, tariffType, daytimePe
 export function budgetCalculation({budget, systemType, panel, items, pricing, backup}){ const b = moneyN(budget); if(!b || !panel) return null; let best = null; for(let count=1; count<=500; count++){ const kwp = count*Number(panel.panel_wp||0)/1000; const invTarget = Math.max(kwp/1.15, systemType==='Hybrid' ? backup.continuousKw*1.25 : 0, systemType==='Hybrid' ? backup.surgeKw : 0); const inverter = chooseClosest(items,'power_kw',invTarget,'inverter',systemType); if(!inverter) continue; let battery = null, batteryCount = 0; if(systemType==='Hybrid' && backup.batteryKwh>0){ battery = chooseClosest(items,'capacity_kwh',backup.batteryKwh,'battery','Hybrid'); if(battery) batteryCount = Math.max(1, Math.ceil(backup.batteryKwh/Number(battery.capacity_kwh||1))); } const price = priceEstimate({panel,panelCount:count,inverter,battery,batteryCount,inverterCount:Math.max(1,Math.ceil(invTarget/Number(inverter.power_kw||invTarget||1))),pricing}); if(price.total<=b) best = { panelCount:count, kwp, inverter, battery, batteryCount, price }; else break; } if(!best) return null; const genMonth = best.kwp*DEFAULTS.yieldPerKwpMonth; return { ...best, genMonth, genYear:genMonth*12, genDay:genMonth*12/365 }; }
 export function npv(rate, cashflows){ return cashflows.reduce((s,c,i)=> s + c / Math.pow(1+rate,i), 0); }
 export function irr(cashflows){ let low=-0.99, high=1.5; let lv=npv(low,cashflows), hv=npv(high,cashflows); if(lv*hv>0) return null; for(let i=0;i<120;i++){ const mid=(low+high)/2; const mv=npv(mid,cashflows); if(Math.abs(mv)<1e-7) return mid; if(lv*mv<0){ high=mid; hv=mv; } else { low=mid; lv=mv; } } return (low+high)/2; }
-export function economics(projectPrice, annualSaving){ const invest = moneyN(projectPrice), y1 = moneyN(annualSaving); let points=[{year:0,cumulative:-invest}], flows=[-invest], cum=-invest, payback=null; for(let year=1; year<=DEFAULTS.analysisYears; year++){ const save = y1 * Math.pow(1+DEFAULTS.tariffGrowth, year-1) * Math.pow(1-DEFAULTS.degradation, year-1); const maint = invest*DEFAULTS.maintenance; const net = save-maint; const prev=cum; cum += net; if(payback===null && cum>=0 && net>0){ payback = Number(((year-1)+((-prev)/net)).toFixed(1)); } points.push({year,cumulative:cum}); flows.push(net); } const by = y => points.find(p=>p.year===y)?.cumulative ?? null; const i = irr(flows); return { points, payback, irr: i===null?null:i*100, npv: npv(DEFAULTS.discount,flows), profit1: by(1), profit20: by(20), profit25: by(25) } }
+export function replacementCost(year,{battery=true,inverter=true}={}){ return (battery&&year===DEFAULTS.batteryReplacementYear?DEFAULTS.batteryReplacementCost:0)+(inverter&&year===DEFAULTS.inverterReplacementYear?DEFAULTS.inverterReplacementCost:0); }
+export function economics(projectPrice, annualSaving, replacements={}){ const invest = moneyN(projectPrice), y1 = moneyN(annualSaving); let points=[{year:0,cumulative:-invest}], flows=[-invest], cum=-invest, payback=null; for(let year=1; year<=DEFAULTS.analysisYears; year++){ const save = y1 * Math.pow(1+DEFAULTS.tariffGrowth, year-1) * Math.pow(1-DEFAULTS.degradation, year-1); const maint = invest*DEFAULTS.maintenance; const replacement = replacementCost(year,replacements); const net = save-maint-replacement; const prev=cum; cum += net; if(payback===null && cum>=0 && net>0){ payback = Number(((year-1)+((-prev)/net)).toFixed(1)); } points.push({year,cumulative:cum}); flows.push(net); } const by = y => points.find(p=>p.year===y)?.cumulative ?? null; const i = irr(flows); return { points, payback, irr: i===null?null:i*100, npv: npv(DEFAULTS.discount,flows), profit1: by(1), profit20: by(20), profit25: by(25) } }
 export function co2(yearKwh){ return moneyN(yearKwh)*DEFAULTS.co2KgPerKwh/1000; }
 
 /* ออกแบบระบบ: ใช้รุ่น/จำนวนที่เลือกเอง ถ้าไม่เลือกให้คำนวณอัตโนมัติ */
@@ -64,7 +66,7 @@ function baseDesignSystem({ mode, systemType, items, pricing, backup, sel, budge
 
 // Period defaults are explicit estimation assumptions, editable in the UI.
 export function usagePlan(usage, systemType, backup) {
-  const defaultDayPercent = ({day:90, night:10, both:50})[usage.period] ?? 90;
+  const defaultDayPercent = PERIOD_DEFAULTS[usage.period] ?? 90;
   const dayPercent = Math.max(0, Math.min(100, usage.daytimePercent === '' || usage.daytimePercent == null ? defaultDayPercent : Number(usage.daytimePercent)));
   const estimated = estimateMonthlyKwh(usage.monthlyKwh, usage.monthlyBill, usage.tariffType);
   const dayMonthly = estimated.monthlyKwh * dayPercent / 100;
@@ -93,16 +95,20 @@ export function designSystem({mode, systemType, items, pricing, backup, sel, bud
   const bill = moneyN(usage.monthlyBill), kwh = plan.estimated.monthlyKwh;
   const rate = kwh > 0 && bill > 0 ? bill / kwh : (BILL_RATES[usage.tariffType] || BILL_RATES.residential);
   const saveMonth = Math.min(bill > 0 ? bill : Infinity, (direct + shifted) * rate);
-  const eco = economics(r.price.total, saveMonth * 12);
+  const replacements={battery:!!r.battery,inverter:!!r.inverter};
+  const eco = economics(r.price.total, saveMonth * 12,replacements);
   const cashflowRows = eco.points.map((pt, i) => {
-    if (!i) return {year:0,saving:0,maintenance:0,net:-r.price.total,accumulated:0,cumulative:pt.cumulative};
+    if (!i) return {year:0,saving:0,maintenance:0,replacement:0,net:-r.price.total,accumulated:0,cumulative:pt.cumulative};
     const saving = saveMonth * 12 * Math.pow(1+DEFAULTS.tariffGrowth,i-1) * Math.pow(1-DEFAULTS.degradation,i-1);
     const maintenance = r.price.total * DEFAULTS.maintenance;
-    return {year:pt.year,saving,maintenance,net:saving-maintenance,accumulated:pt.cumulative+r.price.total,cumulative:pt.cumulative};
+    const replacement = replacementCost(pt.year,replacements);
+    return {year:pt.year,saving,maintenance,replacement,net:saving-maintenance-replacement,accumulated:pt.cumulative+r.price.total,cumulative:pt.cumulative};
   });
   if (systemType === 'On-Grid' && usage.period !== 'day') r.warnings.push('เลือก On-Grid เอง: ระบบไม่เก็บไฟไว้ใช้กลางคืน คิดเงินประหยัดเฉพาะการใช้ไฟกลางวัน');
   if (systemType === 'Hybrid' && plan.nightDaily > 0) r.warnings.push('การใช้ไฟกลางคืนเป็นค่าเฉลี่ยรายวัน ระยะเวลาจ่ายไฟจริงขึ้นกับโหลดและข้อจำกัดของแบตเตอรี่/อินเวอร์เตอร์');
   if (systemType === 'Hybrid' && shifted + 0.01 < plan.nightDaily*30) r.warnings.push('พลังงานจากแผงหรือแบตเตอรี่ยังไม่ครอบคลุมไฟกลางคืนทั้งหมด ส่วนที่ขาดใช้ไฟจากการไฟฟ้า');
+  const firstRecovered=eco.points.findIndex(p=>p.year>0&&p.cumulative>=0);
+  if(firstRecovered>=0&&eco.points.slice(firstRecovered+1).some(p=>p.cumulative<0)) r.warnings.push('ค่าเปลี่ยนอุปกรณ์ทำให้ยอดสุทธิกลับมาติดลบหลังจุดคุ้มทุนครั้งแรก กรุณาดูตารางรายปีประกอบ');
   return {...r,eco,saveMonth,saveYear:saveMonth*12,ratio:r.genMonth>0?(direct + shifted / DEFAULTS.batteryEff)/r.genMonth:0,
     co2:co2((direct+shifted)*12),monthlyKwh:kwh,usageSource:plan.estimated.source,backup:plan.backup,
     phase,dayPercent:plan.dayPercent,nightDaily:plan.nightDaily,directMonthly:direct,shiftedMonthly:shifted,cashflowRows};
