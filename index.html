@@ -16,7 +16,7 @@
     @media(max-width:700px) { .boot-card { margin:24px 14px; padding:20px; } }
     @media print { #global-error { display:none; } }
   </style>
-  <link rel="stylesheet" href="./style.css?v=20261009-1" />
+  <link rel="stylesheet" href="./style.css?v=20261009-2" />
 </head>
 <body>
   <aside id="global-error" role="alert" hidden>
@@ -59,7 +59,7 @@
       document.getElementById('error-reload').onclick = function () { location.reload(); };
       document.getElementById('error-dismiss').onclick = function () { document.getElementById('global-error').hidden = true; };
       timer = setTimeout(function () { if (!ready) showError('หมดเวลารอเปิดระบบ ตรวจสอบ main.js และ calc.js'); }, 15000);
-      import('./main.js?v=20261009-1').catch(showError);
+      import('./main.js?v=20261009-2').catch(showError);
     })();
   </script>
 </body>
