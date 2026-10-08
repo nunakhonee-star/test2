@@ -1,5 +1,5 @@
 // All local modules share the release token from index.html.
-const release = new URL(import.meta.url).searchParams.get('v') || '20261009-2';
+const release = new URL(import.meta.url).searchParams.get('v') || '20261009-3';
 const localModule = name => new URL(name + '?v=' + encodeURIComponent(release), import.meta.url).href;
 const { DEFAULT_PRICING, normalizePricing, backupFromAppliances, toCalcAppliance, designSystem, usagePlan } = await import(localModule('./calc.js'));
 let supabase = null;
@@ -42,6 +42,7 @@ async function boundedFetch(input, init = {}) {
 const state = { equipment: [], assessments: [], appliances: [], apQty: {}, apNote: '', pricing: { ...DEFAULT_PRICING }, editEq: null, editAp: null, last: null };
 const $ = id => document.getElementById(id);
 const num = id => Number($(id).value || 0);
+const buildingTariff = () => ({home:'residential',factory:'industrial',business:'business'})[$('buildingType').value] || 'residential';
 const radio = n => document.querySelector(`input[name="${n}"]:checked`)?.value;
 const money = v => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(Number(v || 0));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -67,12 +68,16 @@ $('app').innerHTML = `
 <section id="calculator" class="page active"><div class="calc">
 
 <div class="inputs" id="inputs">
-  <section class="step"><h2>ลูกค้าและประเภทงาน</h2>
+  <section class="step"><h2>ข้อมูลลูกค้าและโครงการ</h2>
     <div class="grid3"><label>ชื่อลูกค้า<input id="customerName" placeholder="คุณสมชาย / บริษัท ABC"></label><label>เบอร์โทร<input id="phone" inputmode="tel"></label><label>สถานที่ / โครงการ<input id="siteName"></label></div>
+  </section>
+  <section class="step"><h2>สถานที่ใช้งานและระบบไฟ</h2><p class="hint">เลือกประเภทสถานที่ครั้งเดียว ระบบใช้อัตราค่าไฟและเฟสเริ่มต้นให้สอดคล้องกัน</p>
     <div class="grid2">
-      <label>ลักษณะอาคาร<select id="buildingType"><option value="home">บ้านอยู่อาศัย</option><option value="factory">โรงงาน / อุตสาหกรรม</option><option value="business">สำนักงาน / ธุรกิจ</option></select></label>
+      <label>ประเภทสถานที่ใช้งาน<select id="buildingType"><option value="home">บ้านอยู่อาศัย</option><option value="factory">โรงงาน / อุตสาหกรรม</option><option value="business">สำนักงาน / ธุรกิจ</option></select></label>
       <label>โครงสร้างระบบไฟ<select id="supplyPhase"><option value="1PH">1 เฟส</option><option value="3PH">3 เฟส</option></select><small>บ้านตั้งต้น 1 เฟส โรงงาน/ธุรกิจ 3 เฟส ปรับให้ตรงกับมิเตอร์จริงได้</small></label>
     </div>
+  </section>
+  <section class="step"><h2>ช่วงเวลาใช้งานและประเภทระบบ</h2>
     <div class="field"><span>ช่วงเวลาใช้ไฟหลัก</span>${seg('usagePeriod', [['day', '☀ กลางวัน'], ['night', '☾ กลางคืน'], ['both', '◐ ทั้งกลางวัน–กลางคืน']])}</div>
     <div class="period-guide">
       <p><b>☀ กลางวัน</b> = On-Grid (ไม่ต้องมีแบต) โดยทั่วไปคืนทุนเร็วสุด</p>
@@ -80,38 +85,37 @@ $('app').innerHTML = `
       <p><b>◐ ทั้งคู่</b> = Hybrid (แบตกลาง) ใช้ตลอดวัน + กันไฟดับตามโหลดที่เลือก</p>
       <small>ขนาดแบตจริงคำนวณจากการใช้ไฟและโหลดสำรอง ไม่ใช่ขนาดตายตัว</small>
     </div>
-    <div class="grid2"><div class="field"><span>ประเภทระบบ (ปรับเองได้)</span>${seg('systemType', [['On-Grid', 'On-Grid'], ['Hybrid', 'Hybrid (มีแบตเตอรี่)']])}</div><div class="field"><span>ประเมินจาก</span>${seg('calcMode', [['usage', 'การใช้ไฟ'], ['budget', 'งบประมาณ']])}</div></div>
+    <div class="field system-choice"><span>ประเภทระบบ (ปรับเองได้)</span>${seg('systemType', [['On-Grid', 'On-Grid'], ['Hybrid', 'Hybrid (มีแบตเตอรี่)']])}</div>
   </section>
 
-  <section class="step"><h2>การใช้ไฟและงบประมาณ</h2>
+  <section class="step"><h2>ข้อมูลการใช้ไฟและงบประมาณ</h2><div class="field method-choice"><span>วิธีประเมิน</span>${seg('calcMode', [['usage', 'จากการใช้ไฟ'], ['budget', 'จากงบประมาณ']])}</div>
     <div id="budgetRow" class="grid2" hidden><label>งบประมาณลูกค้า (บาท)<input id="budgetAmount" type="number" placeholder="เช่น 100000"></label></div>
     <div class="grid2">
       <label>หน่วยไฟต่อเดือน (kWh)<input id="monthlyKwh" type="number" placeholder="เช่น 1200"><small>เว้นว่างได้ ระบบจะประมาณจากค่าไฟ</small></label>
       <label>ค่าไฟต่อเดือน (บาท)<input id="monthlyBill" type="number" placeholder="เช่น 5000"></label>
-      <label>ประเภทผู้ใช้ไฟ<select id="tariffType"><option value="residential">บ้านอยู่อาศัย</option><option value="business">ธุรกิจทั่วไป</option><option value="industrial">โรงงาน / อุตสาหกรรม</option></select></label>
       <label>ใช้ไฟช่วงกลางวัน (%)<input id="daytimePercent" type="number" min="0" max="100" placeholder="อัตโนมัติ 90%"><small id="periodAssumption"></small></label>
     </div>
     <p class="hint" id="usageNote"></p><p class="hint" id="planNote"></p>
   </section>
 
-  <section class="step" id="backupStep" hidden><h2>โหลดสำรอง (Hybrid)</h2>
+  <section class="step" id="backupStep" hidden><h2>อุปกรณ์ที่ต้องการสำรองไฟ</h2><p class="hint">สำหรับ Hybrid: เลือกเฉพาะโหลดที่ต้องใช้งานเมื่อไฟดับ</p>
     <div class="row-between"><label class="inline">สำรองไฟนาน (ชั่วโมง)<input id="backupHours" type="number" step="0.5" min="0" placeholder="เช่น 5"></label><button type="button" class="link" data-go="appliances">จัดการรายการโหลด</button></div>
     <div id="applianceList" class="ap-list"></div>
     <div class="figures"><div><span>โหลดต่อเนื่อง</span><b id="bkCont">—</b></div><div><span>โหลดสูงสุด (Surge)</span><b id="bkSurge">—</b></div><div><span>แบตเตอรี่ที่ต้องใช้</span><b id="bkBat">—</b></div></div>
   </section>
 
-  <section class="step equipment-step"><div class="step-head"><div><h2>อุปกรณ์ที่ติดตั้ง</h2><p class="hint">ค่าเริ่มต้นเป็น “อัตโนมัติ” ระบบจะเลือกรุ่นและจำนวนที่เหมาะสมให้ตามข้อมูลที่กรอก</p></div><div class="equipment-actions"><button type="button" class="btn btn-auto" id="autoEquipmentBtn"><span class="btn-icon">✦</span> เลือกอัตโนมัติ</button></div></div>
+  <section class="step equipment-step"><div class="step-head"><div><h2>ชุดอุปกรณ์โซลาร์ที่ติดตั้ง</h2><p class="hint">ค่าเริ่มต้นเป็น “อัตโนมัติ” ระบบจะเลือกรุ่นและจำนวนที่เหมาะสมให้ตามข้อมูลที่กรอก</p></div><div class="equipment-actions"><button type="button" class="btn btn-auto" id="autoEquipmentBtn"><span class="btn-icon">✦</span> เลือกอัตโนมัติ</button></div></div>
     ${Object.keys(CAT).map(c => `<div class="eq-row" id="row_${c}"><span class="eq-name">${CAT[c]}</span><select id="sel_${c}" aria-label="${CAT[c]}"></select><label class="qty"><input id="qty_${c}" type="number" min="0" step="1" placeholder="อัตโนมัติ" aria-label="จำนวน${CAT[c]}"><span>${UNIT[c]}</span></label></div>`).join('')}
   </section>
 
-  <section class="step"><h2>หมายเหตุ</h2><textarea id="notes" placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea>
+  <section class="step"><h2>หมายเหตุและเอกสารเสนอราคา</h2><textarea id="notes" placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea>
     <div class="actions"><button class="btn primary" id="saveBtn"><span class="btn-icon">✓</span> บันทึกการประเมิน</button><button class="btn btn-soft" id="printBtn"><span class="btn-icon">▣</span> พิมพ์ / PDF</button></div></section>
 </div>
 
 <aside class="result" id="result">
   <div id="resultEmpty" class="empty" hidden></div>
   <div id="resultBody">
-    <div class="headline"><span>ราคาโครงการรวม (รวม VAT)</span><b id="rTotal">—</b><small id="rSystem">—</small></div>
+    <div class="headline"><span>เงินลงทุนเริ่มต้น (รวม VAT)</span><b id="rTotal">—</b><small id="rSystem">—</small></div>
     <section class="overview-panel">
       <div class="overview-title">สรุปภาพรวมระบบ <span id="overviewCustomer">—</span></div>
       <div class="overview-grid">
@@ -121,12 +125,22 @@ $('app').innerHTML = `
         <div class="overview-card"><b id="ovSavingPct">—</b><span>ลดค่าไฟโดยประมาณ</span></div>
       </div>
     </section>
-    <div class="trio"><div><span>ประหยัดค่าไฟ / เดือน</span><b id="rSave">—</b></div><div><span>คืนทุน</span><b id="rPay">—</b></div><div><span>กำไรสุทธิ 25 ปี</span><b id="rProfit">—</b></div></div>
+    <section class="panel finance-summary" aria-labelledby="financeHeading">
+      <h3 id="financeHeading">ภาพรวมการลงทุนและจุดคุ้มทุน</h3>
+      <div class="finance-grid">
+        <div class="finance-card investment"><span>เงินลงทุนเริ่มต้น</span><b id="finInvestment">—</b><small>จ่ายครั้งแรก รวม VAT</small></div>
+        <div class="finance-card payback"><span>จุดคุ้มทุนโดยประมาณ</span><b id="rPay">—</b><small>ประหยัดสุทธิสะสมเท่ากับเงินลงทุน</small></div>
+        <div class="finance-card accumulated"><span>ประหยัดสุทธิสะสม 25 ปี</span><b id="finAccumulated">—</b><small>หักบำรุงรักษาแล้ว ยังไม่หักเงินลงทุน</small></div>
+        <div class="finance-card profit"><span>สุทธิหลังหักเงินลงทุน 25 ปี</span><b id="rProfit">—</b><small>ประหยัดสุทธิสะสม − เงินลงทุนเริ่มต้น</small></div>
+      </div>
+      <p class="finance-story" id="finNarrative"></p>
+    </section>
     <section class="panel savings-panel"><h3>ค่าไฟฟ้าที่ประหยัดได้</h3><div class="savings-grid"><div><span>ค่าไฟปัจจุบัน/เดือน</span><b id="svBill">—</b></div><div><span>ประหยัด/เดือน</span><b id="svMonth">—</b></div><div><span>ประหยัด/ปี</span><b id="svYear">—</b></div><div><span>ค่าไฟคงเหลือโดยประมาณ</span><b id="svRemain">—</b></div></div></section>
     <div id="rWarn"></div>
-    <section class="panel"><h3>อุปกรณ์และค่าใช้จ่าย</h3><div class="table-wrap"><table class="cost"><thead><tr><th>รายการ</th><th class="r">จำนวน</th><th class="r">จำนวนเงิน</th></tr></thead><tbody id="rCost"></tbody></table></div></section>
+    <section class="panel"><h3>เส้นทางคืนทุนและเงินประหยัดสะสม</h3><div class="chart-wrap" id="chart"></div><div id="chartTooltip" class="chart-tooltip" role="tooltip" hidden></div><div class="table-wrap annual-wrap"><table class="cost annual-table"><caption>รายละเอียดเงินลงทุนและเงินประหยัดรายปี (บาท)</caption><thead><tr><th>ปี</th><th class="r">ประหยัดค่าไฟ</th><th class="r">บำรุงรักษา</th><th class="r">กระแสเงินสดสุทธิ</th><th class="r">ประหยัดสุทธิสะสม</th><th class="r">สุทธิหลังหักลงทุน</th></tr></thead><tbody id="annualBody"></tbody></table></div><details class="financial-details"><summary>ดูตัวชี้วัดเพิ่มเติม: IRR / NPV / CO₂</summary><dl class="specs" id="rEco"></dl></details><p class="hint">ประมาณการ 25 ปี ยังไม่รวมค่าเปลี่ยนแบตเตอรี่/อินเวอร์เตอร์ในอนาคต</p></section>
+    <section class="panel"><h3>รายละเอียดชุดอุปกรณ์และเงินลงทุน</h3><div class="table-wrap"><table class="cost"><thead><tr><th>รายการ</th><th class="r">จำนวน</th><th class="r">จำนวนเงิน</th></tr></thead><tbody id="rCost"></tbody></table></div></section>
     <section class="panel"><h3>การผลิตไฟฟ้า</h3><dl class="specs" id="rGen"></dl></section>
-    <section class="panel"><h3>ความคุ้มค่าและเงินประหยัดสะสม</h3><dl class="specs" id="rEco"></dl><div class="chart-wrap" id="chart"></div><div id="chartTooltip" class="chart-tooltip" role="tooltip" hidden></div><div class="table-wrap annual-wrap"><table class="cost annual-table"><caption>เงินประหยัดและกระแสเงินสดรายปี (บาท)</caption><thead><tr><th>ปี</th><th class="r">ประหยัดค่าไฟ</th><th class="r">บำรุงรักษา</th><th class="r">กระแสเงินสดสุทธิ</th><th class="r">ประหยัดสุทธิสะสม</th><th class="r">สุทธิหลังหักลงทุน</th></tr></thead><tbody id="annualBody"></tbody></table></div><p class="hint">ประมาณการตามสมมติฐานเดิม 25 ปี ยังไม่รวมค่าเปลี่ยนแบตเตอรี่/อินเวอร์เตอร์ในอนาคต</p></section>
+
   </div>
 </aside>
 </div></section>
@@ -241,7 +255,7 @@ function calc() {
   const selectKey = sys + ':' + $('supplyPhase').value;
   if (selectKey !== lastSys) { lastSys = selectKey; fillSelects(); }
   const rawBackup = sys === 'Hybrid' ? backupFromAppliances(state.apQty, num('backupHours'), state.appliances.filter(a => a.active !== false).map(toCalcAppliance)) : { continuousKw: 0, surgeKw: 0, usableKwh: 0, batteryKwh: 0, items: [] };
-  const usage = { monthlyKwh: $('monthlyKwh').value, monthlyBill: $('monthlyBill').value, tariffType: $('tariffType').value, daytimePercent: $('daytimePercent').value, period: radio('usagePeriod'), phase: $('supplyPhase').value };
+  const usage = { monthlyKwh: $('monthlyKwh').value, monthlyBill: $('monthlyBill').value, tariffType: buildingTariff(), daytimePercent: $('daytimePercent').value, period: radio('usagePeriod'), phase: $('supplyPhase').value };
   const plan = usagePlan(usage, sys, rawBackup);
   const backup = plan.backup;
   $('periodAssumption').textContent = 'เว้นว่างใช้สมมติฐาน: กลางวัน 90% / กลางคืน 10% / ทั้งคู่ 50% ปรับตามการใช้จริงได้';
@@ -263,7 +277,7 @@ function render(r, sys) {
   $('sel_panel').options[0].textContent = `อัตโนมัติ (${nm(a.panel)})`; $('sel_inverter').options[0].textContent = `อัตโนมัติ (${nm(a.inverter)})`; if (sys === 'Hybrid') $('sel_battery').options[0].textContent = a.battery ? `อัตโนมัติ (${nm(a.battery)})` : 'อัตโนมัติ';
   $('qty_panel').placeholder = `อัตโนมัติ ${a.panelQty || ''}`; $('qty_inverter').placeholder = `อัตโนมัติ ${a.invQty}`; $('qty_battery').placeholder = `อัตโนมัติ ${a.batQty || ''}`;
   $('usageNote').textContent = r.usageSource === 'actual' ? 'ใช้หน่วยไฟจริงจากบิล' : r.usageSource === 'estimated' ? `ประมาณหน่วยไฟจากค่าไฟ ≈ ${r.monthlyKwh.toFixed(0)} kWh/เดือน` : 'ยังไม่มีข้อมูลหน่วยไฟ จึงสมมติใช้ไฟเองได้ 80% ของที่ผลิต';
-  const pay = r.eco.payback ? `${r.eco.payback} ปี` : 'เกิน 25 ปี', p = r.price;
+  const pay = r.eco.payback != null ? `${r.eco.payback} ปี` : 'ยังไม่คุ้มทุนใน 25 ปี', p = r.price;
   $('rTotal').textContent = money(p.total);
   const phase = r.phase === '3PH' ? '3 เฟส' : '1 เฟส';
   const batKwh = r.battery ? (r.batQty * Number(r.battery.capacity_kwh || 0)) : 0;
@@ -276,7 +290,16 @@ function render(r, sys) {
   $('ovBattery').textContent = sys === 'Hybrid' ? `${batKwh.toFixed(1)} kWh` : 'ไม่ใช้';
   $('ovGeneration').textContent = `${Math.round(r.genYear).toLocaleString('th-TH')} kWh`;
   $('ovSavingPct').textContent = bill > 0 ? `~${savingPct.toFixed(0)}%` : '—';
-  $('rSave').textContent = money(r.saveMonth); $('rPay').textContent = pay; $('rProfit').textContent = money(r.eco.profit25);
+  $('rPay').textContent = pay;
+  const accumulated = r.cashflowRows.at(-1).accumulated;
+  $('finInvestment').textContent = money(p.total);
+  $('finAccumulated').textContent = money(accumulated);
+  $('rProfit').textContent = money(r.eco.profit25);
+  $('rProfit').closest('.finance-card').classList.toggle('negative-return',r.eco.profit25<0);
+  $('finNarrative').textContent = r.eco.payback != null
+    ? 'ลงทุน ' + money(p.total) + ' → คาดว่าคุ้มทุนใน ' + pay + ' → เมื่อครบ 25 ปี ประหยัดสุทธิสะสม ' + money(accumulated) + ' หักเงินลงทุนแล้วเหลือ ' + money(r.eco.profit25)
+    : 'ลงทุน ' + money(p.total) + ' → เงินประหยัดสุทธิสะสมยังไม่ถึงเงินลงทุนภายใน 25 ปี → สุทธิหลังหักเงินลงทุน ' + money(r.eco.profit25);
+  $('finNarrative').textContent += ' (ประมาณการ ยังไม่รวมค่าเปลี่ยนแบตเตอรี่/อินเวอร์เตอร์)';
   $('svBill').textContent = bill > 0 ? money(bill) : '—';
   $('svMonth').textContent = money(r.saveMonth);
   $('svYear').textContent = money(r.saveYear);
@@ -294,14 +317,30 @@ function render(r, sys) {
 }
 const shortMoney = v => { const a = Math.abs(v), s = v < 0 ? '-' : ''; return a >= 1e6 ? s + (a / 1e6).toFixed(1) + 'ล.' : a >= 1e3 ? s + Math.round(a / 1e3) + 'k' : s + Math.round(a); };
 function renderBar(points, payback, investment, rows) {
-  const W=640,H=270,p={t:20,r:10,b:40,l:56};
+  const W=720,H=360,p={t:60,r:18,b:42,l:62};
   const savings=rows.map(row=>({year:row.year,value:Math.max(0,row.accumulated)}));
-  const maxY=Math.max(investment,...savings.map(x=>x.value),1),cw=W-p.l-p.r,ch=H-p.t-p.b,step=cw/savings.length,bw=Math.max(6,step-3);
-  const x=i=>p.l+i*step+1,y=v=>p.t+(maxY-v)/maxY*ch;
-  const detail=row=>`ปี ${row.year}\nประหยัดค่าไฟ: ${money(row.saving)}\nบำรุงรักษา: ${money(row.maintenance)}\nกระแสเงินสดสุทธิ: ${money(row.net)}\nประหยัดสุทธิสะสม: ${money(row.accumulated)}\nสุทธิหลังหักลงทุน: ${money(row.cumulative)}`;
+  const maxY=Math.max(investment,...savings.map(x=>x.value),1)*1.07,cw=W-p.l-p.r,ch=H-p.t-p.b,step=cw/savings.length,bw=Math.max(6,step-4);
+  const x=i=>p.l+i*step+2,y=v=>p.t+(maxY-v)/maxY*ch;
+  const firstRecovered=rows.findIndex(row=>row.year>0&&row.cumulative>=0);
+  const before=firstRecovered>0?rows[firstRecovered-1]:null,after=firstRecovered>0?rows[firstRecovered]:null;
+  // Use interpolation of the actual cashflows so the marker lies on the investment crossing.
+  const exactPayback=before&&after?before.year+(-before.cumulative)/(after.cumulative-before.cumulative):null;
+  const crossingX=exactPayback==null?null:x(0)+bw/2+exactPayback*step;
+  const labelX=crossingX==null?null:Math.max(p.l+88,Math.min(W-p.r-88,crossingX));
+  const detail=row=>`ปี ${row.year}\nเงินลงทุนเริ่มต้น: ${money(investment)}\nประหยัดค่าไฟปีนี้: ${money(row.saving)}\nบำรุงรักษา: ${money(row.maintenance)}\nกระแสเงินสดสุทธิปีนี้: ${money(row.net)}\nประหยัดสุทธิสะสม: ${money(row.accumulated)}\nสุทธิหลังหักเงินลงทุน: ${money(row.cumulative)}`;
   $('chartTooltip').hidden=true;
-  $('chart').innerHTML=`<div class="chart-legend"><span><i class="legend-save"></i>ประหยัดสุทธิสะสม (หักบำรุงรักษา)</span><span><i class="legend-invest"></i>เงินลงทุน</span></div><p class="hint">ชี้เมาส์ แตะแท่งกราฟ หรือใช้ Tab เพื่อดูรายละเอียดรายปี</p><svg viewBox="0 0 ${W} ${H}" class="svg-chart" role="group" aria-label="เงินประหยัดสะสมเทียบเงินลงทุน">${Array.from({length:5},(_,i)=>maxY*i/4).map(v=>`<line x1="${p.l}" y1="${y(v)}" x2="${W-p.r}" y2="${y(v)}" stroke="#e8eeec"/><text x="${p.l-6}" y="${y(v)+4}" text-anchor="end" class="tick">${shortMoney(v)}</text>`).join('')}<line x1="${p.l}" y1="${y(investment)}" x2="${W-p.r}" y2="${y(investment)}" stroke="#d7a63e" stroke-width="2" stroke-dasharray="6 4"/>${savings.map((pt,i)=>`<rect class="chart-bar" data-year="${i}" tabindex="0" role="img" aria-label="${esc(detail(rows[i]))}" x="${x(i)}" y="${y(pt.value)}" width="${bw}" height="${Math.max(2,y(0)-y(pt.value))}" rx="2" fill="${pt.value>=investment?'#0b7a5f':'#39aabf'}"><title>${esc(detail(rows[i]))}</title></rect>${i%5===0?`<text x="${x(i)+bw/2}" y="${H-14}" text-anchor="middle" class="tick">ปี ${pt.year}</text>`:''}`).join('')}</svg>`;
-  $('annualBody').innerHTML=rows.map(row=>`<tr class="${row.year>0&&row.cumulative>=0?'break-even':''}"><td>${row.year===0?'0 (ลงทุน)':row.year}</td><td class="r">${money(row.saving)}</td><td class="r">${money(row.maintenance)}</td><td class="r">${money(row.net)}</td><td class="r">${money(row.accumulated)}</td><td class="r">${money(row.cumulative)}</td></tr>`).join('');
+  $('chart').innerHTML=`<div class="chart-legend finance-legend"><span><i class="legend-before"></i>ช่วงสะสมเพื่อคืนทุน</span><span><i class="legend-after"></i>หลังจุดคุ้มทุน</span><span><i class="legend-invest"></i>เงินลงทุนเริ่มต้น</span></div>
+    <p class="chart-explanation">แท่งกราฟ = เงินประหยัดสุทธิสะสมหลังหักบำรุงรักษา<br>เมื่อถึงเส้นสีทอง = ชดเชยเงินลงทุนเริ่มต้นครบ</p>
+    <svg viewBox="0 0 ${W} ${H}" class="svg-chart" role="group" aria-label="เงินลงทุน ${esc(money(investment))} เทียบประหยัดสุทธิสะสม ${payback==null?'ยังไม่คุ้มทุนใน 25 ปี':'คุ้มทุนประมาณ '+payback+' ปี'}">
+    <title>เงินลงทุนและจุดคุ้มทุน</title>
+    ${crossingX==null?'':`<rect x="${crossingX}" y="${p.t}" width="${W-p.r-crossingX}" height="${ch}" fill="#eaf6f1"/>`}
+    ${Array.from({length:5},(_,i)=>maxY*i/4).map(v=>`<line x1="${p.l}" y1="${y(v)}" x2="${W-p.r}" y2="${y(v)}" stroke="#dce8e3"/><text x="${p.l-8}" y="${y(v)+4}" text-anchor="end" class="tick">${shortMoney(v)}</text>`).join('')}
+    ${savings.map((pt,i)=>`<rect class="chart-bar" data-year="${i}" tabindex="0" role="img" aria-label="${esc(detail(rows[i]))}" x="${x(i)}" y="${y(pt.value)}" width="${bw}" height="${Math.max(2,y(0)-y(pt.value))}" rx="3" fill="${pt.value>=investment?'#0b7a5f':'#39aabf'}"><title>${esc(detail(rows[i]))}</title></rect>${i%5===0?`<text x="${x(i)+bw/2}" y="${H-17}" text-anchor="middle" class="tick">ปี ${pt.year}</text>`:''}`).join('')}
+    <line class="investment-line" x1="${p.l}" y1="${y(investment)}" x2="${W-p.r}" y2="${y(investment)}" stroke="#b58219" stroke-width="2.5" stroke-dasharray="7 4"/>
+    <text x="${W-p.r-5}" y="${Math.max(p.t+12,y(investment)-9)}" text-anchor="end" class="investment-label">เงินลงทุน ${money(investment)}</text>
+    ${crossingX==null?`<text x="${p.l}" y="30" class="no-payback-label">ยังไม่ถึงจุดคุ้มทุนภายใน 25 ปี</text>`:`<line class="payback-marker" x1="${crossingX}" y1="40" x2="${crossingX}" y2="${H-p.b}" stroke="#0b6b57" stroke-width="2" stroke-dasharray="4 4"/><circle cx="${crossingX}" cy="${y(investment)}" r="6" fill="#d7a63e" stroke="#ffffff" stroke-width="2"/><rect x="${labelX-88}" y="8" width="176" height="30" rx="10" fill="#0b6b57"/><text x="${labelX}" y="28" text-anchor="middle" class="payback-label">จุดคุ้มทุน ≈ ${payback} ปี</text>`}
+    </svg><p class="hint">ชี้เมาส์ แตะแท่งกราฟ หรือใช้ Tab เพื่อดูรายละเอียดแต่ละปี</p>`;
+  $('annualBody').innerHTML=rows.map(row=>`<tr class="${row.year===firstRecovered?'first-break-even':row.year>0&&row.cumulative>=0?'break-even':''}"><td>${row.year===0?'0 (ลงทุน)':row.year}${row.year===firstRecovered?'<small class="payback-badge">ปีแรกที่สะสมเกินทุน</small>':''}</td><td class="r">${money(row.saving)}</td><td class="r">${money(row.maintenance)}</td><td class="r">${money(row.net)}</td><td class="r">${money(row.accumulated)}</td><td class="r">${money(row.cumulative)}</td></tr>`).join('');
   const show=event=>{
     const bar=event.target.closest?.('[data-year]');if(!bar)return;
     const tooltip=$('chartTooltip'),row=rows[Number(bar.dataset.year)];
@@ -311,9 +350,9 @@ function renderBar(points, payback, investment, rows) {
     tooltip.style.top=Math.max(8,Math.min(top+14,innerHeight-tooltip.offsetHeight-8))+'px';
   };
   $('chart').onpointerover=show;$('chart').onpointermove=show;$('chart').onclick=show;
-  $('chart').querySelectorAll('.chart-bar').forEach(bar => {
-    bar.addEventListener('focus', () => show({target:bar}));
-    bar.addEventListener('blur', () => $('chartTooltip').hidden=true);
+  $('chart').querySelectorAll('.chart-bar').forEach(bar=>{
+    bar.addEventListener('focus',()=>show({target:bar}));
+    bar.addEventListener('blur',()=>$('chartTooltip').hidden=true);
   });
   $('chart').onpointerleave=()=>$('chartTooltip').hidden=true;
   $('chart').onkeydown=event=>{if(event.key==='Escape')$('chartTooltip').hidden=true;};
@@ -432,7 +471,6 @@ $('autoEquipmentBtn').onclick = setEquipmentAuto;
 $('buildingType').onchange = () => {
   const building = $('buildingType').value;
   $('supplyPhase').value = building === 'home' ? '1PH' : '3PH';
-  $('tariffType').value = building === 'home' ? 'residential' : building === 'factory' ? 'industrial' : 'business';
   lastSys = null; calc();
 };
 document.querySelectorAll('input[name="usagePeriod"]').forEach(input => input.onchange = () => {
