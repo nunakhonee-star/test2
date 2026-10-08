@@ -25,6 +25,7 @@ main{max-width:1540px;margin:0 auto;padding:26px 28px 64px}.page{display:none}.p
 /* Clear input categories and a customer-facing investment summary. */
 .system-choice,.method-choice{margin-top:16px}.step>h2+.grid3{margin-top:16px}
 .step .grid2>label,.step .grid3>label{align-content:start}
+.form .grid2>label{align-content:start}
 .financial-details{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}.financial-details summary{cursor:pointer;color:var(--green-dark);font-weight:600;font-size:13px}.financial-details[open] summary{margin-bottom:12px}
 .finance-summary{border-color:#c5ded3}.finance-summary h3{margin-bottom:16px}
 .finance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -36,3 +37,5 @@ main{max-width:1540px;margin:0 auto;padding:26px 28px 64px}.page{display:none}.p
 .annual-table tr.first-break-even{background:#dcf2e8;font-weight:700;border-top:2px solid #0b7a5f}.payback-badge{font-size:11px;color:#075d48;white-space:normal;min-width:90px}
 @media(max-width:520px){.finance-grid{grid-template-columns:1fr}.finance-card{padding:16px}.finance-card>b{font-size:27px}.finance-card.payback>b{font-size:25px}}
 @media print{.finance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.finance-card>b{font-size:23px}.finance-summary{break-inside:avoid}}
+
+.settings-tabs{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 24px}.settings-tabs .active{background:var(--green);color:white;border-color:var(--green)}.settings-notice{padding:12px 16px;background:var(--mint);border-radius:12px}.settings-subsection{margin:0 0 26px}.brand-logo{width:44px;height:44px;object-fit:contain;border-radius:8px}.brand b{max-width:240px;white-space:normal;overflow-wrap:anywhere}.company-preview{display:flex;align-items:center;gap:18px;padding:20px;background:var(--mint);border-radius:14px}.company-preview img{width:90px;height:90px;object-fit:contain}.company-preview b{font-size:24px;overflow-wrap:anywhere}input:disabled,select:disabled,textarea:disabled{background:#f3f6f4;opacity:.85}button:disabled{opacity:.5;cursor:not-allowed}.print-company,.print-terms{display:none}#companyMessage,#calculationMessage{white-space:pre-wrap;overflow-wrap:anywhere}.print-company img{width:80px;height:80px;object-fit:contain}.print-company p,.print-terms{white-space:pre-line}@media(max-width:520px){.settings-tabs .btn{width:100%}.company-preview{align-items:flex-start}.company-preview b{font-size:20px}.brand b{max-width:210px}}@media print{.print-company{display:block;margin-bottom:22px}.print-company img{float:left;margin-right:18px}.print-company:after{content:'';display:block;clear:both}.print-terms{display:block;border-top:1px solid #ccc;margin-top:20px;padding-top:16px}.settings-tabs{display:none}}
