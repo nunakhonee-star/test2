@@ -1,10 +1,42 @@
-import { DEFAULT_PRICING, normalizePricing, backupFromAppliances, toCalcAppliance, designSystem } from './calc.js';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
-
+// All local modules share the release token from index.html.
+const release = new URL(import.meta.url).searchParams.get('v') || '20261009-1';
+const localModule = name => new URL(name + '?v=' + encodeURIComponent(release), import.meta.url).href;
+const { DEFAULT_PRICING, normalizePricing, backupFromAppliances, toCalcAppliance, designSystem } = await import(localModule('./calc.js'));
 let supabase = null;
-if (SUPABASE_URL && SUPABASE_KEY) {
-  try { const m = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'); supabase = m.createClient(SUPABASE_URL, SUPABASE_KEY); }
-  catch (e) { console.warn('Supabase โหลดไม่ได้', e); }
+let demoMode = true;
+const dataErrors = new Map();
+function dataStatus(table, error) {
+  if (error) dataErrors.set(table, error.message || String(error));
+  else dataErrors.delete(table);
+  if (supabase) setConnection(dataErrors.size
+    ? 'เชื่อมต่อได้บางส่วน: ' + [...dataErrors.keys()].join(', ') + (demoMode ? ' • ใช้อุปกรณ์ตัวอย่าง ห้ามใช้เสนอราคาจริง' : '')
+    : 'เชื่อมต่อ Supabase • โหลดข้อมูลแล้ว');
+}
+function setConnection(message) {
+  const el = document.querySelector('.mode');
+  if (el) { el.textContent = message; el.setAttribute('role', 'status'); }
+}
+function withTimeout(promise, ms, label) {
+  let timer;
+  return Promise.race([promise, new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label + ' หมดเวลารอ')), ms);
+  })]).finally(() => clearTimeout(timer));
+}
+async function boundedFetch(input, init = {}) {
+  const controller = new AbortController();
+  const abort = () => controller.abort(init.signal?.reason);
+  if (init.signal?.aborted) abort();
+  else init.signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    // Include response-body download in the timeout, not only headers.
+    const body = await response.arrayBuffer();
+    return new Response([204, 205, 304].includes(response.status) ? null : body, { status: response.status, statusText: response.statusText, headers: response.headers });
+  } finally {
+    clearTimeout(timer);
+    init.signal?.removeEventListener('abort', abort);
+  }
 }
 
 const state = { equipment: [], assessments: [], appliances: [], apQty: {}, apNote: '', pricing: { ...DEFAULT_PRICING }, editEq: null, editAp: null, last: null };
@@ -29,7 +61,7 @@ $('app').innerHTML = `
     ['appliances','⚡','โหลดสำรอง'],
     ['pricing','฿','ราคาติดตั้ง']
   ].map(([id,icon,l],i)=>`<button data-page="${id}" class="${i?'':'active'}"><span class="nav-icon">${icon}</span><span>${l}</span></button>`).join('')}</nav>
-  <span class="mode">${supabase ? 'เชื่อมต่อ Supabase' : 'โหมดทดลอง (ไม่บันทึกลงฐานข้อมูล)'}</span>
+  <span class="mode">กำลังเชื่อมต่อ • ข้อมูลตัวอย่าง ไม่ใช้เสนอราคาจริง</span>
 </header>
 <main>
 <section id="calculator" class="page active"><div class="calc">
@@ -140,15 +172,15 @@ const demoEquipment = () => [
   { id: 'b2', category: 'battery', brand: 'Demo Battery', model: '15kWh LFP', capacity_kwh: 15, cost: 82000, sell_price: 99000, active: true, system_type: 'Hybrid' }];
 async function loadEquipment() {
   if (!supabase) state.equipment = demoEquipment();
-  else { const { data, error } = await supabase.from('equipment').select('*').order('category').order('brand'); state.equipment = error ? demoEquipment() : (data || []); }
+  else { const { data, error } = await supabase.from('equipment').select('*').order('category').order('brand'); demoMode = !!error; state.equipment = error ? demoEquipment() : (data || []); dataStatus('equipment', error); }
   renderEquipment(); lastSys = null; calc();
 }
 async function loadAssessments() {
-  if (supabase) { const { data, error } = await supabase.from('assessments').select('*').order('created_at', { ascending: false }); state.assessments = error ? [] : (data || []); }
+  if (supabase) { const { data, error } = await supabase.from('assessments').select('*').order('created_at', { ascending: false }); state.assessments = error ? [] : (data || []); dataStatus('assessments', error); }
   renderHistory();
 }
 async function loadPricing() {
-  if (supabase) { const { data, error } = await supabase.from('pricing_settings').select('*').limit(1).maybeSingle(); state.pricing = normalizePricing(error ? DEFAULT_PRICING : (data || DEFAULT_PRICING)); }
+  if (supabase) { const { data, error } = await supabase.from('pricing_settings').select('*').limit(1).maybeSingle(); state.pricing = normalizePricing(error ? DEFAULT_PRICING : (data || DEFAULT_PRICING)); dataStatus('pricing_settings', error); }
   else state.pricing = { ...DEFAULT_PRICING };
   const p = state.pricing; [['laborPerKwp', 'labor_per_kwp'], ['structurePerKwp', 'structure_per_kwp'], ['wiringPerKwp', 'wiring_per_kwp'], ['transportFlat', 'transport_flat'], ['adminFlat', 'admin_flat'], ['marginPercent', 'margin_percent'], ['vatPercent', 'vat_percent']].forEach(([i, k]) => $(i).value = p[k]);
   calc();
@@ -167,6 +199,7 @@ async function loadAppliances() {
     .select('*')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
+  dataStatus('backup_appliances', error);
   if (error) {
     console.error('โหลด backup_appliances ไม่สำเร็จ', error);
     state.appliances = [];
@@ -331,6 +364,7 @@ function renderHistory() {
 }
 $('historyBody').onclick = async e => { const id = e.target.dataset.del; if (!id || !supabase || !confirm('ลบรายการนี้?')) return; const { error } = await supabase.from('assessments').delete().eq('id', id); if (error) alert(error.message); else loadAssessments(); };
 $('saveBtn').onclick = async () => {
+  if (demoMode) return alert('กำลังใช้อุปกรณ์ตัวอย่าง ไม่สามารถบันทึกเป็นการประเมินจริงได้');
   const r = state.last; if (!r) return alert('ยังไม่มีผลประเมินให้บันทึก'); if (!supabase) return alert('โหมดทดลองไม่สามารถบันทึกได้ ต้องเชื่อม Supabase ก่อน');
   const line = (x, q) => x ? { id: x.id, name: `${x.brand} ${x.model}`, qty: q, unit_price: Number(x.sell_price || 0) } : null;
   const payload = { customer_name: $('customerName').value || 'ไม่ระบุชื่อ', phone: $('phone').value, site_name: $('siteName').value, system_type: r.systemType, calc_mode: r.calcMode, monthly_kwh: r.monthlyKwh || 0, monthly_bill: num('monthlyBill'), daytime_percent: num('daytimePercent'), panel_wp: Number(r.panel.panel_wp || 0), recommended_kwp: r.kwp, panel_count: r.panelQty, inverter_kw: Number(r.inverter?.power_kw || 0) * r.invQty, battery_kwh: r.battery ? Number(r.battery.capacity_kwh || 0) * r.batQty : 0, project_price: r.price.total, monthly_saving: r.saveMonth, annual_saving: r.saveYear, saving_percent: num('monthlyBill') > 0 ? Math.min(100, r.saveMonth / num('monthlyBill') * 100) : 0, payback_year: r.eco.payback, final_profit: r.eco.profit25, selected_panel: `${r.panel.brand} ${r.panel.model}`, selected_inverter: r.inverter ? `${r.inverter.brand} ${r.inverter.model}` : null, selected_battery: r.battery ? `${r.battery.brand} ${r.battery.model}` : null, line_items: { panel: line(r.panel, r.panelQty), inverter: line(r.inverter, r.invQty), battery: line(r.battery, r.batQty), backup: r.backup.items.map(i => ({ appliance_id: i.id, name: i.name, qty: i.qty, watt: i.powerW })) }, notes: $('notes').value };
@@ -385,4 +419,34 @@ $('resetCalcBtn').onclick = () => {
 /* ---------- เริ่มทำงาน ---------- */
 $('inputs').addEventListener('input', e => { if (e.target.dataset.ap) state.apQty[e.target.dataset.ap] = Number(e.target.value || 0); calc(); });
 eqToggle(); resetAp();
+// Render and bind the complete UI with existing demo defaults before any network work.
 await Promise.all([loadEquipment(), loadAppliances(), loadAssessments(), loadPricing()]);
+window.solarBoot?.ready();
+// Give the browser a paint opportunity before starting optional remote dependencies.
+setTimeout(() => { connectAndLoad().catch(error => {
+  console.error('Startup failed', error);
+  window.solarBoot?.showError(error);
+}); }, 0);
+
+async function connectAndLoad() {
+  try {
+    const { SUPABASE_URL, SUPABASE_KEY } = await withTimeout(import(localModule('./config.js')), 8000, 'config.js');
+    if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('ยังไม่ได้ตั้งค่า Supabase');
+    const { createClient } = await withTimeout(import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'), 8000, 'Supabase CDN');
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { global: { fetch: boundedFetch } });
+  } catch (error) {
+    console.warn('เปิดโหมดจำกัด', error);
+    setConnection('โหมดจำกัด • อุปกรณ์ตัวอย่าง ไม่ใช้เสนอราคาจริง • ไม่สามารถบันทึกได้ (' + error.message + ')');
+    return;
+  }
+  setConnection('กำลังโหลดข้อมูล Supabase • ยังใช้อุปกรณ์ตัวอย่าง');
+  const loaders = [loadEquipment, loadAppliances, loadAssessments, loadPricing];
+  const results = await Promise.allSettled(loaders.map(load => load()));
+  results.forEach((result, i) => {
+    if (result.status === 'rejected') {
+      dataStatus(['equipment', 'backup_appliances', 'assessments', 'pricing_settings'][i], result.reason);
+      console.error('Data load failed', result.reason);
+      window.solarBoot?.showError(result.reason);
+    }
+  });
+}
