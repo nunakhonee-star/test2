@@ -1,5 +1,5 @@
 // All local modules share the release token from index.html.
-const release = new URL(import.meta.url).searchParams.get('v') || '20261012-1';
+const release = new URL(import.meta.url).searchParams.get('v') || '20261012-3';
 const localModule = name => new URL(name + '?v=' + encodeURIComponent(release), import.meta.url).href;
 const { DEFAULT_PRICING, normalizePricing, backupFromAppliances, toCalcAppliance, designSystem, usagePlan, OFFICIAL_FT, OFFICIAL_RESIDENTIAL, officialFtForMonth, compareDesigns, DEFAULTS, BILL_RATES, PERIOD_DEFAULTS } = await import(localModule('./calc.js'));
 const {settingsMarkup,mountSettings} = await import(localModule('./settings.js'));
@@ -161,7 +161,7 @@ $('app').innerHTML = `
       <h3 id="financeHeading">ภาพรวมการลงทุนและจุดคุ้มทุน</h3>
       <div class="finance-grid">
         <button type="button" disabled class="finance-card investment dashboard-detail" data-detail="finInvestment"><span>เงินลงทุนเริ่มต้น</span><b id="finInvestment">—</b><small>จ่ายครั้งแรก รวม VAT</small><span class="detail-link">ดูรายละเอียด ↗</span></button>
-        <button type="button" disabled class="finance-card payback dashboard-detail" data-detail="rPay"><span>จุดคุ้มทุนโดยประมาณ</span><b id="rPay">—</b><small>ประหยัดสุทธิสะสมเท่ากับเงินลงทุน</small><span class="detail-link">ดูรายละเอียด ↗</span></button>
+        <button type="button" disabled class="finance-card payback dashboard-detail" data-detail="rPay"><span>จุดคุ้มทุนครั้งแรกโดยประมาณ</span><b id="rPay">—</b><small>ประหยัดสุทธิสะสมเท่ากับเงินลงทุน</small><span class="detail-link">ดูรายละเอียด ↗</span></button>
         <button type="button" disabled class="finance-card accumulated dashboard-detail" data-detail="finAccumulated"><span>ประหยัดสุทธิสะสม 25 ปี</span><b id="finAccumulated">—</b><small>หักค่าดูแล/เปลี่ยนอุปกรณ์แล้ว ยังไม่หักทุน</small><span class="detail-link">ดูรายละเอียด ↗</span></button>
         <button type="button" disabled class="finance-card profit dashboard-detail" data-detail="rProfit"><span>สุทธิหลังหักเงินลงทุน 25 ปี</span><b id="rProfit">—</b><small>ประหยัดสุทธิสะสม − เงินลงทุนเริ่มต้น</small><span class="detail-link">ดูรายละเอียด ↗</span></button>
       </div>
@@ -428,7 +428,7 @@ function openDashboardDetail(id,show=true){
  ovSavingPct:['วิธีประเมินเงินประหยัด','svMonth',[
  ['หน่วยไฟก่อนติดตั้ง',r.monthlyKwh.toFixed(1)+' kWh/เดือน'],['หน่วยที่ลดการซื้อโดยประมาณ',(r.directMonthly+r.shiftedMonthly).toFixed(1)+' kWh/เดือน'],['วิธีค่าไฟ',$('billingMode').selectedOptions[0].textContent],['ค่าบริการที่ยังต้องจ่าย',money(r.billBefore?.service??num('serviceCharge'))+' ก่อน VAT/เดือน'],['ประหยัดเฉลี่ยเดือนแรก',money(r.saveMonth)],['ประหยัดปีแรก',money(r.saveYear)],['ส่วนเผื่อเพดานและยอดคงเหลือขั้นต่ำ',money(r.modelReserve)+'/เดือน — ไม่ใช่ค่าสแตนด์บายทางการ'],['ยอดคงเหลือประเมิน',money(r.remainingBill)+'/เดือน'],['ขายไฟปีแรก',money(r.exportRevenueYear1)+' — แยกจากเงินลดบิล'],['หลักการ','คิดเฉพาะพลังงานที่ใช้เองสำหรับลดบิล รายได้ขายไฟแยกตามสัญญา; PEA ใช้ส่วนต่างค่าไฟขั้นบันได + Ft + VAT ประเภทบิลคงเดิม'],['ข้อจำกัด','TOU/demand ต้องตรวจข้อมูลตามช่วงเวลา ไม่รับรองว่าโหลดกลางวันทั้งหมดตรงกับแดดจริง']]],
  finInvestment:['เงินลงทุนโครงการ','rCost', [['ประเภทฐานราคา',r.systemType+' — คิด BOQ แยกตามรุ่นอินเวอร์เตอร์และแบต'],['ความจุแบตที่ใช้คิดราคา',r.installedBatteryKwh.toFixed(2)+' kWh (ปัดตามจำนวนชุดจริง)'],['แผงโซลาร์',money(r.price.panelTotal)],['อินเวอร์เตอร์',money(r.price.inverterTotal)],['แบตเตอรี่',money(r.price.batteryTotal)],['งานประกอบเฉพาะระบบ',money(r.price.systemBalance)],['รวมอุปกรณ์ (ยอดย่อย)',money(r.price.equipment)],['ค่าแรง',money(r.price.labor)],['โครงสร้าง',money(r.price.structure)],['สายและอุปกรณ์',money(r.price.wiring)],['ค่าขนส่ง',money(r.price.transport)],['ค่าดำเนินการ',money(r.price.admin)],['งานเพิ่มเติม',money(r.price.extra||0)],['Margin',money(r.price.margin)],['VAT',money(r.price.vat)],['รวมเงินลงทุน',money(r.price.total)]]],
- rPay:['จุดคุ้มทุนโดยประมาณ','annualBody', [['ระยะคืนทุน',r.eco.payback==null?'ไม่คุ้มทุนในช่วงวิเคราะห์':r.eco.payback+' ปี'],['หลักการ','ปีแรกที่กระแสเงินสดสะสมหลังหักเงินลงทุนกลับถึง 0 โดยแทรกค่าระหว่างปี'],['รวมค่าใช้จ่าย','หักค่าบำรุงและค่าเปลี่ยนอุปกรณ์ที่ตั้งค่าแล้ว'],['ข้อจำกัด','เป็นคืนทุนแบบไม่คิดลด; หากเปลี่ยนอุปกรณ์ภายหลังอาจกลับติดลบได้ ดูตารางรายปีประกอบ']]],
+ rPay:['จุดคุ้มทุนครั้งแรกโดยประมาณ','annualBody', [['ระยะคืนทุน',r.eco.payback==null?'ไม่คุ้มทุนในช่วงวิเคราะห์':r.eco.payback+' ปี'],['หลักการ','ปีแรกที่กระแสเงินสดสะสมหลังหักเงินลงทุนกลับถึง 0 โดยแทรกค่าระหว่างปี'],['รวมค่าใช้จ่าย','หักค่าบำรุงและค่าเปลี่ยนอุปกรณ์ที่ตั้งค่าแล้ว'],['ข้อจำกัด','เป็นคืนทุนแบบไม่คิดลด; หากเปลี่ยนอุปกรณ์ภายหลังอาจกลับติดลบได้ ดูตารางรายปีประกอบ']]],
  finAccumulated:['ประหยัดสุทธิสะสม 25 ปี','annualBody', [['ยอดสะสม',money(r.cashflowRows.at(-1).accumulated)],['สูตร','รวมเงินประหยัดและรายได้ขายไฟตามสัญญารายปี − ค่าบำรุงรักษา − ค่าเปลี่ยนอุปกรณ์'],['ค่าไฟเปลี่ยนต่อปี',(DEFAULTS.tariffGrowth*100).toFixed(1)+'%'],['ผลผลิตลดต่อปี',(DEFAULTS.degradation*100).toFixed(2)+'%'],['หมายเหตุ','ยอดนี้ยังไม่หักเงินลงทุน ไม่ใช่เงินรับประกัน และใช้อัตราเปลี่ยนแปลงตามสมมติฐาน']]],
  rProfit:['ยอดสุทธิหลังหักเงินลงทุน','annualBody', [['ประหยัดสุทธิสะสม',money(r.cashflowRows.at(-1).accumulated)],['หักเงินลงทุน',money(r.price.total)],['สุทธิ 25 ปี',money(r.eco.profit25)],['NPV ที่อัตราคิดลด '+(DEFAULTS.discount*100).toFixed(1)+'%',money(r.eco.npv)],['หมายเหตุ','ยอดสุทธิปกติยังไม่คิดลดมูลค่าเงินตามเวลา; NPV คิดลดแล้ว']]]
  };
@@ -447,29 +447,32 @@ $('closeDashboardDetail').onclick=()=>$('dashboardDialog').close();
 $('dashboardDialog').addEventListener('click',e=>{if(e.target===$('dashboardDialog')){const b=e.target.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)e.target.close();}});
 const shortMoney = v => { const a = Math.abs(v), s = v < 0 ? '-' : ''; return a >= 1e6 ? s + (a / 1e6).toFixed(1) + 'ล.' : a >= 1e3 ? s + Math.round(a / 1e3) + 'k' : s + Math.round(a); };
 function renderBar(points, payback, investment, rows) {
-  const W=720,H=360,p={t:60,r:18,b:42,l:62};
-  const savings=rows.map(row=>({year:row.year,value:Math.max(0,row.accumulated)}));
-  const maxY=Math.max(investment,...savings.map(x=>x.value),1)*1.07,cw=W-p.l-p.r,ch=H-p.t-p.b,step=cw/savings.length,bw=Math.max(6,step-4);
-  const x=i=>p.l+i*step+2,y=v=>p.t+(maxY-v)/maxY*ch;
+  const W=720,H=360,p={t:62,r:18,b:42,l:62};
+  let operating=0;
+  const savings=rows.map(row=>{if(row.year>0)operating+=row.saving+(row.exportRevenue||0)-row.maintenance;return {year:row.year,value:operating};});
+  const netValues=rows.map(row=>row.accumulated);
+  const minY=Math.min(0,...netValues,...savings.map(x=>x.value)),maxY=Math.max(investment,...savings.map(x=>x.value),1)*1.08;
+  const ch=H-p.t-p.b,step=(W-p.l-p.r)/savings.length,bw=Math.max(6,step-4);
+  const x=i=>p.l+i*step+2,y=v=>p.t+(maxY-v)/(maxY-minY)*ch;
   const firstRecovered=rows.findIndex(row=>row.year>0&&row.cumulative>=0);
   const before=firstRecovered>0?rows[firstRecovered-1]:null,after=firstRecovered>0?rows[firstRecovered]:null;
-  // Use interpolation of the actual cashflows so the marker lies on the investment crossing.
   const exactPayback=before&&after?before.year+(-before.cumulative)/(after.cumulative-before.cumulative):null;
   const crossingX=exactPayback==null?null:x(0)+bw/2+exactPayback*step;
-  const labelX=crossingX==null?null:Math.max(p.l+88,Math.min(W-p.r-88,crossingX));
-  const detail=row=>`ปี ${row.year}\nเงินลงทุนเริ่มต้น: ${money(investment)}\nประหยัดค่าไฟปีนี้: ${money(row.saving)}\nรายได้ขายไฟ: ${money(row.exportRevenue||0)}\nบำรุงรักษา: ${money(row.maintenance)}\nเปลี่ยนอุปกรณ์: ${money(row.replacement||0)}\nกระแสเงินสดสุทธิปีนี้: ${money(row.net)}\nประหยัดสุทธิสะสม: ${money(row.accumulated)}\nสุทธิหลังหักเงินลงทุน: ${money(row.cumulative)}`;
+  const labelX=crossingX==null?null:Math.max(p.l+100,Math.min(W-p.r-100,crossingX));
+  const detail=row=>`ปี ${row.year}\nเงินลงทุนเริ่มต้น: ${money(investment)}\nประหยัดค่าไฟปีนี้: ${money(row.saving)}\nรายได้ขายไฟ: ${money(row.exportRevenue||0)}\nบำรุงรักษา: ${money(row.maintenance)}\nเปลี่ยนอุปกรณ์: ${money(row.replacement||0)}\nสะสมก่อนค่าเปลี่ยนอุปกรณ์: ${money(savings[row.year].value)}\nสะสมสุทธิหลังค่าเปลี่ยนอุปกรณ์: ${money(row.accumulated)}\nสุทธิหลังหักเงินลงทุน: ${money(row.cumulative)}`;
   $('chartTooltip').hidden=true;
-  $('chart').innerHTML=`<div class="chart-legend finance-legend"><span><i class="legend-before"></i>ช่วงสะสมเพื่อคืนทุน</span><span><i class="legend-after"></i>หลังจุดคุ้มทุน</span><span><i class="legend-invest"></i>เงินลงทุนเริ่มต้น</span></div>
-    <p class="chart-explanation">แท่งกราฟ = เงินประหยัดสุทธิสะสมหลังหักค่าดูแล/เปลี่ยนอุปกรณ์<br>เมื่อถึงเส้นสีทอง = ชดเชยเงินลงทุนเริ่มต้นครบ</p>
-    <svg viewBox="0 0 ${W} ${H}" class="svg-chart" role="group" aria-label="เงินลงทุน ${esc(money(investment))} เทียบประหยัดสุทธิสะสม ${payback==null?'ยังไม่คุ้มทุนใน 25 ปี':'คุ้มทุนประมาณ '+payback+' ปี'}">
-    <title>เงินลงทุนและจุดคุ้มทุน</title>
-    ${crossingX==null?'':`<rect x="${crossingX}" y="${p.t}" width="${W-p.r-crossingX}" height="${ch}" fill="#eaf6f1"/>`}
-    ${Array.from({length:5},(_,i)=>maxY*i/4).map(v=>`<line x1="${p.l}" y1="${y(v)}" x2="${W-p.r}" y2="${y(v)}" stroke="#dce8e3"/><text x="${p.l-8}" y="${y(v)+4}" text-anchor="end" class="tick">${shortMoney(v)}</text>`).join('')}
-    ${savings.map((pt,i)=>`<rect class="chart-bar" data-year="${i}" tabindex="0" role="img" aria-label="${esc(detail(rows[i]))}" x="${x(i)}" y="${y(pt.value)}" width="${bw}" height="${Math.max(2,y(0)-y(pt.value))}" rx="3" fill="${pt.value>=investment?'#0b7a5f':'#39aabf'}"><title>${esc(detail(rows[i]))}</title></rect>${i%5===0?`<text x="${x(i)+bw/2}" y="${H-17}" text-anchor="middle" class="tick">ปี ${pt.year}</text>`:''}`).join('')}
+  $('chart').innerHTML=`<div class="chart-legend finance-legend"><span><i class="legend-before"></i>สะสมก่อนค่าเปลี่ยนอุปกรณ์</span><span><i class="legend-net"></i>สะสมสุทธิหลังค่าเปลี่ยนอุปกรณ์</span><span><i class="legend-invest"></i>เงินลงทุนเริ่มต้น</span></div>
+    <p class="chart-explanation">แท่งกราฟ = ประหยัดสะสมหลังค่าดูแล ก่อนค่าเปลี่ยนอุปกรณ์<br>เส้นสีเข้ม = ยอดสุทธิที่ใช้คำนวณคืนทุน; อาจลดลงในปีที่เปลี่ยนอุปกรณ์</p>
+    <svg viewBox="0 0 ${W} ${H}" class="svg-chart" role="group" aria-label="ยอดประหยัดสะสมก่อนและหลังค่าเปลี่ยนอุปกรณ์เทียบเงินลงทุน">
+    <title>เงินประหยัดสะสมและจุดคุ้มทุนครั้งแรก</title>
+    ${Array.from({length:5},(_,i)=>minY+(maxY-minY)*i/4).map(v=>`<line x1="${p.l}" y1="${y(v)}" x2="${W-p.r}" y2="${y(v)}" stroke="#dce8e3"/><text x="${p.l-8}" y="${y(v)+4}" text-anchor="end" class="tick">${shortMoney(v)}</text>`).join('')}
+    ${savings.map((pt,i)=>`<rect class="chart-bar" data-year="${i}" tabindex="0" role="img" aria-label="${esc(detail(rows[i]))}" x="${x(i)}" y="${y(Math.max(0,pt.value))}" width="${bw}" height="${Math.max(2,Math.abs(y(0)-y(pt.value)))}" rx="3" fill="#39aabf"><title>${esc(detail(rows[i]))}</title></rect>${i%5===0?`<text x="${x(i)+bw/2}" y="${H-17}" text-anchor="middle" class="tick">ปี ${pt.year}</text>`:''}`).join('')}
+    <polyline class="net-accumulated-line" points="${rows.map((row,i)=>(x(i)+bw/2)+','+y(row.accumulated)).join(' ')}" fill="none" stroke="#173c32" stroke-width="3" stroke-linejoin="round"/>
+    ${rows.filter(row=>row.replacement>0).map(row=>`<circle cx="${x(row.year)+bw/2}" cy="${y(row.accumulated)}" r="5" fill="#c3743e"><title>ปี ${row.year} เปลี่ยนอุปกรณ์ ${money(row.replacement)}</title></circle>`).join('')}
     <line class="investment-line" x1="${p.l}" y1="${y(investment)}" x2="${W-p.r}" y2="${y(investment)}" stroke="#b58219" stroke-width="2.5" stroke-dasharray="7 4"/>
     <text x="${W-p.r-5}" y="${Math.max(p.t+12,y(investment)-9)}" text-anchor="end" class="investment-label">เงินลงทุน ${money(investment)}</text>
-    ${crossingX==null?`<text x="${p.l}" y="30" class="no-payback-label">ยังไม่ถึงจุดคุ้มทุนภายใน 25 ปี</text>`:`<line class="payback-marker" x1="${crossingX}" y1="40" x2="${crossingX}" y2="${H-p.b}" stroke="#0b6b57" stroke-width="2" stroke-dasharray="4 4"/><circle cx="${crossingX}" cy="${y(investment)}" r="6" fill="#d7a63e" stroke="#ffffff" stroke-width="2"/><rect x="${labelX-88}" y="8" width="176" height="30" rx="10" fill="#0b6b57"/><text x="${labelX}" y="28" text-anchor="middle" class="payback-label">จุดคุ้มทุน ≈ ${payback} ปี</text>`}
-    </svg><p class="hint">ชี้เมาส์ แตะแท่งกราฟ หรือใช้ Tab เพื่อดูรายละเอียดแต่ละปี</p>`;
+    ${crossingX==null?`<text x="${p.l}" y="30" class="no-payback-label">ยังไม่ถึงจุดคุ้มทุนภายใน 25 ปี</text>`:`<line class="payback-marker" x1="${crossingX}" y1="40" x2="${crossingX}" y2="${H-p.b}" stroke="#0b6b57" stroke-width="2" stroke-dasharray="4 4"/><circle cx="${crossingX}" cy="${y(investment)}" r="6" fill="#d7a63e" stroke="#fff" stroke-width="2"/><rect x="${labelX-100}" y="8" width="200" height="30" rx="10" fill="#0b6b57"/><text x="${labelX}" y="28" text-anchor="middle" class="payback-label">คุ้มทุนครั้งแรก ≈ ${payback} ปี</text>`}
+    </svg><p class="hint">จุดคุ้มทุนอ้างอิงเส้นสุทธิ ไม่ใช่ยอดแท่งก่อนค่าเปลี่ยน • ชี้เมาส์หรือแตะแท่งเพื่อดูรายละเอียด</p>`;
   $('annualBody').innerHTML=rows.map(row=>`<tr class="${row.year===firstRecovered?'first-break-even':row.year>0&&row.cumulative>=0?'break-even':''}"><td>${row.year===0?'0 (ลงทุน)':row.year}${row.year===firstRecovered?'<small class="payback-badge">ปีแรกที่สะสมเกินทุน</small>':''}</td><td class="r">${money(row.saving)}</td><td class="r">${money(row.exportRevenue||0)}</td><td class="r">${money(row.maintenance)}</td><td class="r">${money(row.replacement||0)}</td><td class="r">${money(row.net)}</td><td class="r">${money(row.accumulated)}</td><td class="r">${money(row.cumulative)}</td></tr>`).join('');
   const show=event=>{
     const bar=event.target.closest?.('[data-year]');if(!bar)return;
