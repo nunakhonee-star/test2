@@ -1,4 +1,5 @@
-const {normalizeLocations}=await import(new URL('./catalog.js'+new URL(import.meta.url).search,import.meta.url));
+function normalizeLocations(rows){if(!Array.isArray(rows)||!rows.length||rows.length>50)throw Error('ประเภทสถานที่ต้องมี 1–50 รายการ');const ids=new Set();const result=rows.map(x=>{const id=String(x.id||''),name=String(x.name||'').trim();if(!/^[a-zA-Z0-9_-]{1,80}$/.test(id)||ids.has(id)||!name||name.length>100||!['1PH','3PH'].includes(x.phase)||!['residential','business','industrial'].includes(x.tariff))throw Error('ข้อมูลประเภทสถานที่ไม่ถูกต้องหรือรหัสซ้ำ');ids.add(id);return {id,name,phase:x.phase,tariff:x.tariff,active:x.active!==false};});if(!result.some(x=>x.active))throw Error('ต้องมีประเภทสถานที่เปิดใช้งานอย่างน้อยหนึ่งรายการ');return result;}
+
 const $=id=>document.getElementById(id);
 const COMPANY_FIELDS=[['company_name','ชื่อบริษัท','text'],['phone','เบอร์โทร','tel'],['email','อีเมล','email'],['tax_id','เลขประจำตัวผู้เสียภาษี','text'],['address','ที่อยู่บริษัท','textarea'],['quote_valid_days','อายุใบเสนอราคา (วัน)','number'],['payment_terms','เงื่อนไขการชำระเงิน','textarea'],['warranty_terms','เงื่อนไขการรับประกัน','textarea'],['document_footer','ข้อความท้ายเอกสาร','textarea']];
 export const SETTING_FIELDS=[
