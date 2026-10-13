@@ -1,14 +1,5 @@
 name: Refresh official tariff references
 on:
-  push:
-    branches: [main]
-    paths:
-      - "*.html"
-      - "*.js"
-      - "*.css"
-      - "data/**"
-      - "scripts/tariff-sync.mjs"
-      - ".github/workflows/tariff-update.yml"
   schedule:
     - cron: '17 23 * * *'
   workflow_dispatch:
