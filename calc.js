@@ -1,7 +1,7 @@
 
 export const DEFAULT_PRICING = { labor_per_kwp:6000, structure_per_kwp:3500, wiring_per_kwp:1800, transport_flat:5000, admin_flat:3000, margin_percent:8, vat_percent:7 };
 export const PERIOD_DEFAULTS = {day:90,night:10,both:50};
-export const DEFAULTS = { batteryReplacementYear:10,batteryReplacementCost:0,batteryReplacementYear2:20,inverterReplacementYear:10,inverterReplacementCost:0,inverterReplacementYear2:20, yieldPerKwpMonth:125, batteryDod:0.90, batteryEff:0.95, batteryRoundTripEff:0.90, batteryReserve:1.10, tariffGrowth:0.025, minimumBill:200,onGridSavingsCap:0.60,hybridSavingsCap:0.90,onGridBalanceCost:0,hybridBalanceCost:5000,batteryPricePerKwh:9000,roofAreaPerPanel:2.6,roofLayoutFactor:1.2,exportApproved:0,exportContractReference:'',exportSiteName:'',exportRate:2.2,exportYears:10,exportStartYear:1,exportLimitKw:5, degradation:0.005, discount:0.08, maintenance:0.005, co2KgPerKwh:0.5664, analysisYears:25 };
+export const DEFAULTS = { yieldPerKwpMonth:125, batteryDod:0.90, batteryEff:0.95, batteryRoundTripEff:0.90, batteryReserve:1.10, tariffGrowth:0.025, minimumBill:200,onGridSavingsCap:0.60,hybridSavingsCap:0.60,onGridBalanceCost:0,hybridBalanceCost:5000,batteryPricePerKwh:9000,roofAreaPerPanel:2.6,roofLayoutFactor:1.2,degradation:0.005, discount:0.08, co2KgPerKwh:0.5664, analysisYears:25 };
 export const BILL_RATES = { residential:4.2, business:4.8, industrial:4.5 };
 
 export function moneyN(v){ return Number(v||0); }
@@ -25,20 +25,23 @@ export function usageCalculation({monthlyKwh, monthlyBill, tariffType, daytimePe
 export function budgetCalculation({budget, systemType, panel, items, pricing, backup,phase}){ const b = moneyN(budget); if(!b || !panel) return null; let best = null; for(let count=1; count<=500; count++){ const kwp = count*Number(panel.panel_wp||0)/1000; if(phase==='1PH'&&kwp>5+1e-9)break; const invTarget = Math.max(kwp/1.15, systemType==='Hybrid' ? backup.continuousKw*1.25 : 0, systemType==='Hybrid' ? backup.surgeKw : 0); const inverter = chooseClosest(items,'power_kw',invTarget,'inverter',systemType); if(!inverter) continue; let battery = null, batteryCount = 0; if(systemType==='Hybrid' && backup.batteryKwh>0){ battery = chooseClosest(items,'capacity_kwh',backup.batteryKwh,'battery','Hybrid'); if(battery) batteryCount = Math.max(1, Math.ceil(backup.batteryKwh/Number(battery.capacity_kwh||1))); } const price = priceEstimate({panel,panelCount:count,inverter,battery,batteryCount,inverterCount:Math.max(1,Math.ceil(invTarget/Number(inverter.power_kw||invTarget||1))),pricing,systemType}); if(price.total<=b) best = { panelCount:count, kwp, inverter, battery, batteryCount, price };  } if(!best) return null; const genMonth = best.kwp*DEFAULTS.yieldPerKwpMonth; return { ...best, genMonth, genYear:genMonth*12, genDay:genMonth*12/365 }; }
 export function npv(rate, cashflows){ return cashflows.reduce((s,c,i)=> s + c / Math.pow(1+rate,i), 0); }
 export function irr(cashflows){ const signs=cashflows.filter(x=>x!==0).map(Math.sign); if(signs.slice(1).filter((s,i)=>s!==signs[i]).length!==1)return null; let low=-0.99, high=1.5; let lv=npv(low,cashflows), hv=npv(high,cashflows); if(lv*hv>0) return null; for(let i=0;i<120;i++){ const mid=(low+high)/2; const mv=npv(mid,cashflows); if(Math.abs(mv)<1e-7) return mid; if(lv*mv<0){ high=mid; hv=mv; } else { low=mid; lv=mv; } } return (low+high)/2; }
-export function replacementCost(year,{battery=true,inverter=true,batteryCost=0,inverterCost=0}={}){
- const amount=(kind,enabled,fallback)=>enabled&&[DEFAULTS[kind+'ReplacementYear'],DEFAULTS[kind+'ReplacementYear2']].filter(y=>y>0).includes(year)?(DEFAULTS[kind+'ReplacementCost']>0?DEFAULTS[kind+'ReplacementCost']:fallback):0;
- return amount('battery',battery,batteryCost)+amount('inverter',inverter,inverterCost);
-}
-export function economics(projectPrice, annualSaving, replacements={},annualModel=null){
- const invest=moneyN(projectPrice);let cum=-invest,payback=null;const flows=[-invest],points=[{year:0,cumulative:cum}],rows=[{year:0,saving:0,exportRevenue:0,maintenance:0,replacement:0,net:-invest,accumulated:0,cumulative:cum}];
+export function economics(projectPrice, annualSaving, unused={},annualModel=null){
+ const invest=moneyN(projectPrice);let cum=-invest,payback=null;const flows=[-invest],points=[{year:0,cumulative:cum}],rows=[{year:0,saving:0,net:-invest,accumulated:0,cumulative:cum}];
  for(let year=1;year<=DEFAULTS.analysisYears;year++){
-  const model=annualModel?annualModel(year):{saving:annualSaving*Math.pow(1+DEFAULTS.tariffGrowth,year-1)*Math.pow(1-DEFAULTS.degradation,year-1),exportRevenue:0};
-  const maintenance=invest*DEFAULTS.maintenance,replacement=replacementCost(year,replacements),net=model.saving+model.exportRevenue-maintenance-replacement,prev=cum;
-  cum+=net;if(payback===null&&cum>=0&&net>0)payback=Number((year-1-prev/net).toFixed(1));
-  flows.push(net);points.push({year,cumulative:cum});rows.push({year,...model,maintenance,replacement,net,accumulated:cum+invest,cumulative:cum});
+  const model=annualModel?annualModel(year):{saving:annualSaving*Math.pow(1+DEFAULTS.tariffGrowth,year-1)*Math.pow(1-DEFAULTS.degradation,year-1)};
+  const net=model.saving,prev=cum;cum+=net;
+  if(payback===null&&cum>=0&&net>0)payback=Number((year-1-prev/net).toFixed(1));
+  flows.push(net);points.push({year,cumulative:cum});rows.push({year,saving:model.saving,net,accumulated:cum+invest,cumulative:cum});
  }
  const i=irr(flows),at=year=>points.find(p=>p.year===year)?.cumulative??null;
  return {points,rows,flows,payback,irr:i===null?null:i*100,npv:npv(DEFAULTS.discount,flows),roi:invest>0?cum/invest*100:null,profit1:at(1),profit20:at(20),profit25:at(25)};
+}
+export function equipmentIssue(x){
+ const model=String(x.model||'');
+ if(x.category==='inverter'&&(/optimizer|MERC-\d+W-P/i.test(model)))return 'Optimizer ไม่ใช่อินเวอร์เตอร์ กรุณาเปลี่ยนประเภทอุปกรณ์';
+ if(x.category==='inverter'&&/SUN2000-\s*(12|15|17|20|25)K-MB0/i.test(model)&&x.phase!=='3PH')return 'SUN2000 รุ่น MB0 นี้เป็น 3 เฟส กรุณาแก้สเปกในฐานอุปกรณ์';
+ if(x.category==='battery'&&/SUN\s*2000/i.test(model))return 'SUN2000 ไม่ใช่แบตเตอรี่';
+ return null;
 }
 export function conservativeSavings(before,rawSaving,systemType){
  const cap=systemType==='Hybrid'?DEFAULTS.hybridSavingsCap:DEFAULTS.onGridSavingsCap;
@@ -160,13 +163,14 @@ export function designSystem({mode, systemType, items, pricing, backup, sel, bud
   const plan = usagePlan(usage, systemType, backup);
   const phase = usage.phase || '1PH';
   // Unknown phases cannot be silently treated as compatible with the installation.
-  const compatible = items.filter(x => x.category !== 'inverter' || (x.phase === phase && (systemType!=='Hybrid'||x.system_type==='Hybrid')));
+  const compatible = items.filter(x=>!equipmentIssue(x)).filter(x => x.category !== 'inverter' || (x.phase === phase && (systemType!=='Hybrid'||x.system_type==='Hybrid')));
   const inverterChoices = compatible.filter(x => x.category === 'inverter' && x.active !== false && Number(x.power_kw)>0 && (systemType==='Hybrid'?x.system_type==='Hybrid':(!x.system_type || x.system_type===systemType)));
   if (!inverterChoices.length) return {error: 'ไม่พบ Inverter ' + (phase === '1PH' ? '1 เฟส' : '3 เฟส') + ' สำหรับ ' + systemType + ' กรุณาเพิ่มอุปกรณ์หรือระบุเฟสในฐานข้อมูลให้ตรงกับมิเตอร์จริง'};
   if (sel.invId && !inverterChoices.some(x => x.id === sel.invId)) return {error:'Inverter ที่เลือกไม่ตรงกับเฟสหรือประเภทระบบ กรุณาเลือกใหม่'};
   const r = baseDesignSystem({mode, systemType, items:compatible, pricing, backup:plan.backup, sel, budget,
     usage:{...usage, yieldPerKwpMonth:DEFAULTS.yieldPerKwpMonth, monthlyKwh:plan.solarMonthlyTarget, monthlyBill:0, daytimePercent:100,phase}});
   if (r.error) return r;
+  if(systemType==='Hybrid'&&/SUN2000-\s*(12|15|17|20|25)K-MB0/i.test(r.inverter?.model||'')&&r.battery&&!/^LUNA2000/i.test(r.battery.model||''))return {error:'อินเวอร์เตอร์ Huawei MB0 ต้องตรวจแบตที่รองรับตามคู่มือ ไม่สามารถจับคู่กับแบตที่เลือกโดยอัตโนมัติ'};
   if(![r.panel,r.inverter].every(x=>Number.isFinite(Number(x?.sell_price))&&Number(x.sell_price)>0))return {error:'ระบุราคาขายแผงและอินเวอร์เตอร์มากกว่าศูนย์ก่อนคำนวณการเงิน'};
   if(!Number.isFinite(r.price.total)||r.price.total<=0)return {error:'ราคาโครงการไม่ถูกต้อง ตรวจราคามาตรฐานและค่าใช้จ่ายหน้างาน'};
   const yields=Array(12).fill(DEFAULTS.yieldPerKwpMonth);
@@ -189,9 +193,6 @@ export function designSystem({mode, systemType, items, pricing, backup, sel, bud
   const rawAfter=billBefore?averageBills(generations.map((g,i)=>calculateBill(usage,Math.max(0,monthlyLoads[i]-directByMonth[i]-shiftedByMonth[i])))):null;
   const reserve=Math.max(0,rawSaving-saveMonth);
   const billAfter=rawAfter?{...rawAfter,rawTotal:rawAfter.total,modelReserve:reserve,total:baseline-saveMonth}:null;
-  const exportEligible=systemType==='On-Grid'&&DEFAULTS.exportApproved===1&&DEFAULTS.exportContractReference.trim().length>0&&DEFAULTS.exportSiteName.trim().length>0&&usage.siteName?.trim()===DEFAULTS.exportSiteName.trim()&&usage.tariffType==='residential'&&usage.billingMode?.startsWith('pea')&&Number(r.inverter?.power_kw||0)*r.invQty<=DEFAULTS.exportLimitKw;
-  const grossFactor=(1+normalizePricing(pricing).margin_percent/100)*(1+normalizePricing(pricing).vat_percent/100);
-  const replacements={battery:!!r.battery,inverter:!!r.inverter,batteryCost:r.price.batteryTotal*grossFactor,inverterCost:r.price.inverterTotal*grossFactor};
   const annualModel=year=>{
    const growth=Math.pow(1+DEFAULTS.tariffGrowth,year-1),degradedKwp=r.kwp*Math.pow(1-DEFAULTS.degradation,year-1);
    const energy=year===1?hourly:estimatedEnergyBalance(plan,degradedKwp,availableCapacity,systemType==='Hybrid',Number(r.inverter.power_kw)*r.invQty);
@@ -199,22 +200,17 @@ export function designSystem({mode, systemType, items, pricing, backup, sel, bud
    const service=(billBefore?.service??moneyN(usage.serviceCharge))*(1+moneyN(usage.billVat??7)/100);
    const futureBaseline=Math.max(0,baseline-service)*growth+service;
    const saving=12*conservativeSavings(futureBaseline,raw*growth,systemType);
-   const active=exportEligible&&year>=DEFAULTS.exportStartYear&&year<DEFAULTS.exportStartYear+DEFAULTS.exportYears;
-   // Hourly average kWh limits settlement to configured AC export power. Tariff is fixed, never inflated.
-   const exportRevenue=active?energy.months.reduce((sum,m)=>sum+m.exported,0)*DEFAULTS.exportRate:0;
-   return {saving,exportRevenue};
+   return {saving};
   };
-  const eco=economics(r.price.total,saveMonth*12,replacements,annualModel);
+  const eco=economics(r.price.total,saveMonth*12,{},annualModel);
   const cashflowRows=eco.rows;
   r.warnings.push('เกณฑ์ประเมินแบบเผื่อ: ประหยัดไม่เกิน '+((systemType==='Hybrid'?DEFAULTS.hybridSavingsCap:DEFAULTS.onGridSavingsCap)*100).toFixed(0)+'% และยอดคงเหลือไม่น้อยกว่า '+DEFAULTS.minimumBill+' บาท/เดือน (ไม่เกินบิลเดิม) ส่วนเผื่อนี้ไม่ใช่ค่าสแตนด์บายหรืออัตราบังคับการไฟฟ้า');
   if(r.price.batteryPriceSource==='allowance'&&r.battery)r.warnings.push('แบตไม่มีราคาขาย ใช้ราคาประเมิน '+DEFAULTS.batteryPricePerKwh+' บาท/kWh ของความจุติดตั้งจริง ต้องยืนยันราคาก่อนเสนอราคา');
   if(systemType==='Hybrid'&&plan.backup.batteryKwh>0&&!r.battery)return {error:'ไม่พบแบตเตอรี่ที่มีความจุสำหรับ Hybrid ไม่สามารถประเมินราคาโดยละต้นทุนแบตได้'};
-  if(DEFAULTS.exportApproved&&!exportEligible)r.warnings.push('ไม่คิดรายได้ขายไฟ: ต้องเป็น On-Grid บ้านอยู่อาศัย PEA มีสัญญายืนยัน และพิกัดอินเวอร์เตอร์รวมไม่เกิน '+DEFAULTS.exportLimitKw+' kW ตามกรอบที่ตั้งไว้');
-  r.warnings.push(exportEligible?'รายได้ขายไฟแยกจากเงินลดบิล อัตรา '+DEFAULTS.exportRate+' บาท/kWh เฉพาะปีตามสัญญา ไม่มีรายได้หลังหมดอายุโดยอัตโนมัติ':'ไม่นับรายได้ขายไฟจนกว่าจะยืนยันสัญญาในตั้งค่า');
-  r.warnings.push('ค่าไฟเพิ่ม '+(DEFAULTS.tariffGrowth*100).toFixed(1)+'%/ปี เป็นสมมติฐานของค่าไฟส่วนแปรผัน ไม่ใช่การพยากรณ์ Ft; ปีเปลี่ยนอุปกรณ์เป็นสมมติฐาน ไม่ใช่อายุรับรอง');
+  r.warnings.push('ค่าไฟเพิ่ม '+(DEFAULTS.tariffGrowth*100).toFixed(1)+'%/ปี เป็นสมมติฐานของค่าไฟส่วนแปรผัน ไม่ใช่การพยากรณ์ Ft');
   r.warnings.push('ประมาณการจากแบบจำลองวันตัวอย่าง: โหลดกระจายสม่ำเสมอช่วง 06:00–18:00 และช่วงกลางคืน แดดเป็นโค้งสูงช่วงเที่ยง ไม่ใช่ข้อมูลวัดจริง; ผลผลิต '+DEFAULTS.yieldPerKwpMonth+' kWh/kWp/เดือน เป็นสมมติฐาน ไม่ใช่มาตรฐานทุกพื้นที่');
   if(billBefore&&bill>0&&Math.abs(billBefore.total-bill)>Math.max(10,bill*.02))r.warnings.push('บิลจำลองก่อนติดตั้งต่างจากบิลที่กรอก '+Math.abs(billBefore.total-bill).toFixed(2)+' บาท ตรวจรอบบิล ประเภทอัตรา Ft ค่าบริการ และรายการพิเศษก่อนใช้เสนอราคา');
-  r.warnings.push('เงินประหยัดและคืนทุนเป็นประมาณการ ค่าบริการคงเดิม รายได้ขายไฟขึ้นกับสัญญา • บิล TOU/demand/ส่วนลดพิเศษไม่รองรับ');
+  r.warnings.push('เงินประหยัดและคืนทุนเป็นประมาณการ ค่าบริการคงเดิม • บิล TOU/demand/ส่วนลดพิเศษไม่รองรับ');
   if(!usage.billingMode || usage.billingMode==='estimate')r.warnings.push('ใช้อัตราเฉลี่ยประมาณการ ไม่ใช่การจำลองบิลขั้นบันได/TOU กรุณาระบุวิธีค่าไฟตามบิลก่อนเสนอราคาจริง');
   if(plan.estimated.source.startsWith('estimated'))r.warnings.push('หน่วยไฟประมาณย้อนกลับจากยอดบิลและอัตราที่ตั้งไว้ ควรใช้หน่วยไฟจริงเพื่อเพิ่มความแม่นยำ');
   if(r.invQty>1)r.warnings.push('จำนวนอินเวอร์เตอร์เป็นการประเมินกำลังรวม ต้องยืนยันรุ่นที่ต่อขนานได้และข้อจำกัดของผู้ผลิตก่อนติดตั้ง');
@@ -224,12 +220,10 @@ export function designSystem({mode, systemType, items, pricing, backup, sel, bud
   if (systemType === 'On-Grid' && usage.period !== 'day') r.warnings.push('เลือก On-Grid เอง: ระบบไม่เก็บไฟไว้ใช้กลางคืน คิดเงินประหยัดเฉพาะการใช้ไฟกลางวัน');
   if (systemType === 'Hybrid' && plan.nightDaily > 0) r.warnings.push('การใช้ไฟกลางคืนเป็นค่าเฉลี่ยรายวัน ระยะเวลาจ่ายไฟจริงขึ้นกับโหลดและข้อจำกัดของแบตเตอรี่/อินเวอร์เตอร์');
   if (systemType === 'Hybrid' && shifted + 0.01 < plan.nightDaily*30) r.warnings.push('พลังงานจากแผงหรือแบตเตอรี่ยังไม่ครอบคลุมไฟกลางคืนทั้งหมด ส่วนที่ขาดใช้ไฟจากการไฟฟ้า');
-  const firstRecovered=eco.points.findIndex(p=>p.year>0&&p.cumulative>=0);
-  if(firstRecovered>=0&&eco.points.slice(firstRecovered+1).some(p=>p.cumulative<0)) r.warnings.push('ค่าเปลี่ยนอุปกรณ์ทำให้ยอดสุทธิกลับมาติดลบหลังจุดคุ้มทุนครั้งแรก กรุณาดูตารางรายปีประกอบ');
 
   return {...r,financialReady:kwh>0,energyBalance:hourly,energyBasis:'representative-day-assumption',billBefore,billAfter,eco,saveMonth,saveYear:saveMonth*12,ratio:r.genMonth>0?(direct + shifted / DEFAULTS.batteryRoundTripEff)/r.genMonth:0,
     co2:co2((direct+shifted)*12),monthlyKwh:kwh,usageSource:plan.estimated.source,backup:plan.backup,
-    rawSaving,modelReserve:reserve,remainingBill:baseline-saveMonth,exportEligible,exportRevenueYear1:eco.rows[1].exportRevenue,roof:roofEstimate(r.kwp,Number(r.panel.panel_wp),DEFAULTS.roofAreaPerPanel*Number(r.panel.panel_wp)/550),installedBatteryKwh:r.price.batteryInstalledKwh,backupRequiredKwh:backup.batteryKwh||0, nightRequiredKwh:plan.nightDaily/(DEFAULTS.batteryDod*DEFAULTS.batteryEff)*DEFAULTS.batteryReserve, productionSource:'default-assumption', billingMode:usage.billingMode||'estimate', phase,dayPercent:plan.dayPercent,nightDaily:plan.nightDaily,directMonthly:direct,shiftedMonthly:shifted,cashflowRows};
+    rawSaving,modelReserve:reserve,remainingBill:baseline-saveMonth,roof:roofEstimate(r.kwp,Number(r.panel.panel_wp),DEFAULTS.roofAreaPerPanel*Number(r.panel.panel_wp)/550),installedBatteryKwh:r.price.batteryInstalledKwh,backupRequiredKwh:backup.batteryKwh||0, nightRequiredKwh:plan.nightDaily/(DEFAULTS.batteryDod*DEFAULTS.batteryEff)*DEFAULTS.batteryReserve, productionSource:'default-assumption', billingMode:usage.billingMode||'estimate', phase,dayPercent:plan.dayPercent,nightDaily:plan.nightDaily,directMonthly:direct,shiftedMonthly:shifted,cashflowRows};
 }
 
 // PEA residential base energy rates effective September 2026. Ft, VAT and
@@ -286,7 +280,7 @@ export function averageBills(bills){return Object.fromEntries(Object.keys(bills[
 // These are explicitly sampled alternatives, not a global engineering optimum.
 export function compareDesigns(input,current){
  const count=current.panelQty,counts=[Math.max(1,Math.floor(count*.8)),count,Math.ceil(count*1.2)];
- const rows=[...new Set(counts)].map(panelQty=>{const r=designSystem({...input,mode:'usage',sel:{...input.sel,panelQty}});return r.error?{panelQty,error:r.error}:{panelQty,kwp:r.kwp,investment:r.price.total,saving:r.saveYear+r.exportRevenueYear1,payback:r.eco.payback,npv:r.eco.npv,excess:Math.max(0,r.genMonth-r.directMonthly-r.shiftedMonthly/DEFAULTS.batteryRoundTripEff),current:panelQty===count};});
+ const rows=[...new Set(counts)].map(panelQty=>{const r=designSystem({...input,mode:'usage',sel:{...input.sel,panelQty}});return r.error?{panelQty,error:r.error}:{panelQty,kwp:r.kwp,investment:r.price.total,saving:r.saveYear,payback:r.eco.payback,npv:r.eco.npv,excess:Math.max(0,r.genMonth-r.directMonthly-r.shiftedMonthly/DEFAULTS.batteryRoundTripEff),current:panelQty===count};});
  let battery=null;
  if(input.systemType==='Hybrid'){
   const ongrid=designSystem({...input,mode:'usage',systemType:'On-Grid',sel:{panelId:current.panel.id,panelQty:count},backup:{continuousKw:0,surgeKw:0,batteryKwh:0,usableKwh:0,items:[]}});
