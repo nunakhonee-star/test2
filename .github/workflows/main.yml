@@ -39,7 +39,7 @@ jobs:
       - name: Stage website files
         run: |
           mkdir -p _site/data
-          cp index.html main.js calc.js settings.js style.css config.js tariffs.js _site/
+          cp index.html main.js style.css config.js _site/
           cp data/tariffs.json _site/data/
       - uses: actions/upload-pages-artifact@v3
         with:
