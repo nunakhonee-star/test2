@@ -59,6 +59,7 @@ function economics(projectPrice, annualSaving, unused={},annualModel=null){
 }
 function equipmentIssue(x){
  if(x.active===false)return null;
+ if(x.category==='inverter'&&/optim(?:izer|iser)|MERC-\d+W-P|SUN2000-\d+W-P/i.test(String(x.model||'')))return 'รายการนี้เป็นอุปกรณ์ Optimizer ไม่ใช่อินเวอร์เตอร์ กรุณาแก้ประเภทในฐานอุปกรณ์ก่อนใช้คำนวณ';
  if(x.active===true&&['panel','inverter','battery'].includes(x.category)&&!String(x.model||'').trim())return 'ยังไม่มีรหัสรุ่นที่ยืนยันสำหรับใช้ออกแบบ กรุณาระบุรุ่นจริงก่อนเปิดแสดง';
  if(x.active===true&&x.category==='inverter'&&(!Number.isFinite(Number(x.power_kw))||!(Number(x.power_kw)>0)||!['1PH','3PH'].includes(x.phase)))return 'ระบุกำลังและเฟสของอินเวอร์เตอร์ก่อนเปิดแสดง';
  if(x.active===true&&x.category==='battery'&&!(Number(x.capacity_kwh)>0))return 'ระบุความจุแบตเตอรี่ก่อนเปิดแสดง';
