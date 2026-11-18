@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "status": "ok",
-  "lastAttemptAt": "2026-11-17T05:04:08.044Z",
-  "lastSuccessAt": "2026-11-17T05:04:08.044Z",
-  "ftCheckedAt": "2026-11-17T05:04:08.044Z",
+  "lastAttemptAt": "2026-11-18T04:18:04.010Z",
+  "lastSuccessAt": "2026-11-18T04:18:04.010Z",
+  "ftCheckedAt": "2026-11-18T04:18:04.010Z",
   "base": {
     "sourceUrl": "https://www.pea.co.th/news/corporate-news/2412",
     "effectiveFrom": "2026-09",
     "acceptedHash": "35a1094fe3bb5ace80172cd5b017bc1f2f7e68fbbba352e601ee6fe02789f949",
     "reviewRequired": true,
-    "lastCheckedAt": "2026-11-17T05:04:08.044Z",
-    "observedHash": "d79c7542504ee7954c3a9b7ccbba29a123faa84be08dd31ca055230b4e50b9dd"
+    "lastCheckedAt": "2026-11-18T04:18:04.010Z",
+    "observedHash": "b2c349902999e9c769af12ac3a2effe06f65f1794b41dd7b2fcc867a7b6dd2ed"
   },
   "ftRecords": [
     {
@@ -19,7 +19,7 @@
       "unit": "THB/kWh",
       "from": "2026-09",
       "to": "2026-12",
-      "checkedAt": "2026-11-17T05:04:08.044Z",
+      "checkedAt": "2026-11-18T04:18:04.010Z",
       "sourceUrl": "https://www.pea.co.th/en/our-services/tariff/ft?page=0",
       "evidenceHash": "c5d990f244a00f87d596da8ff9fd943d749e5ff6558460ac3b5c37d2ac151cab"
     }
