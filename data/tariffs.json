@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "status": "ok",
-  "lastAttemptAt": "2026-11-27T05:01:44.824Z",
+  "status": "degraded",
+  "lastAttemptAt": "2026-11-28T04:43:57.934Z",
   "lastSuccessAt": "2026-11-27T05:01:44.824Z",
   "ftCheckedAt": "2026-11-27T05:01:44.824Z",
   "base": {
@@ -9,7 +9,7 @@
     "effectiveFrom": "2026-09",
     "acceptedHash": "35a1094fe3bb5ace80172cd5b017bc1f2f7e68fbbba352e601ee6fe02789f949",
     "reviewRequired": true,
-    "lastCheckedAt": "2026-11-27T05:01:44.824Z",
+    "lastCheckedAt": "2026-11-28T04:43:57.934Z",
     "observedHash": "8cd018be8d6b0969212daf8b65ff45c09db53972c2d0fd2d0cc72eed8ee76a04"
   },
   "ftRecords": [
@@ -24,5 +24,7 @@
       "evidenceHash": "c5d990f244a00f87d596da8ff9fd943d749e5ff6558460ac3b5c37d2ac151cab"
     }
   ],
-  "errors": []
+  "errors": [
+    "Ft: This operation was aborted"
+  ]
 }
